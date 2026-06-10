@@ -44,7 +44,7 @@ function renderClubsRows(clubs) {
   if (!clubs.length) {
     return `
       <tr>
-        <td colspan="5">No clubs yet.</td>
+        <td colspan="6">No clubs yet.</td>
       </tr>
     `;
   }
@@ -59,6 +59,11 @@ function renderClubsRows(clubs) {
       <td><code>${escapeHtml(club.database_name)}</code></td>
       <td>${statusBadge(club.status)}</td>
       <td>${escapeHtml(formatDate(club.created_at))}</td>
+      <td>
+        <button class="ghost-btn small-btn" data-run-migrations="${escapeHtml(club.id)}">
+          Run Migrations
+        </button>
+      </td>
     </tr>
   `).join("");
 }
@@ -104,7 +109,7 @@ async function loadClubs() {
 
   table.innerHTML = `
     <tr>
-      <td colspan="5">Loading clubs...</td>
+      <td colspan="6">Loading clubs...</td>
     </tr>
   `;
 
@@ -115,12 +120,11 @@ async function loadClubs() {
   } catch (error) {
     table.innerHTML = `
       <tr>
-        <td colspan="5">Failed to load clubs: ${escapeHtml(error.message)}</td>
+        <td colspan="6">Failed to load clubs: ${escapeHtml(error.message)}</td>
       </tr>
     `;
   }
 }
-
 async function loadProvisioningJobs() {
   const table = document.getElementById("provisioningTable");
   if (!table) return;
@@ -206,7 +210,7 @@ export function renderPlatformClubs() {
           <strong id="dbPreview">tmos-club</strong>
         </div>
 
-        <button class="primary-btn" id="provisionBtn" type="submit">Create Provisioning Job</button>
+        <button class="primary-btn" id="provisionBtn" type="submit">Create Club</button>
         <p class="form-message" id="clubFormMessage"></p>
       </form>
     </section>
@@ -251,18 +255,18 @@ export function renderPlatformClubs() {
             <th>D1 Database</th>
             <th>Status</th>
             <th>Created</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="clubsTable">
           <tr>
-            <td colspan="5">Loading clubs...</td>
+            <td colspan="6">Loading clubs...</td>
           </tr>
         </tbody>
       </table>
     </section>
   `;
 }
-
 export function initPlatformClubs() {
   const form = document.getElementById("createClubForm");
   const codeInput = form?.querySelector("[name='clubCode']");
@@ -281,24 +285,51 @@ export function initPlatformClubs() {
   refreshProvisioningBtn?.addEventListener("click", loadProvisioningJobs);
 
   document.addEventListener("click", async (event) => {
-    const buttonEl = event.target.closest("[data-complete-provisioning]");
-    if (!buttonEl) return;
+    const completeButton = event.target.closest("[data-complete-provisioning]");
 
-    const jobId = buttonEl.dataset.completeProvisioning;
+    if (completeButton) {
+      const jobId = completeButton.dataset.completeProvisioning;
 
-    buttonEl.disabled = true;
-    buttonEl.textContent = "Completing...";
+      completeButton.disabled = true;
+      completeButton.textContent = "Completing...";
 
-    try {
-      await apiRequest(`/api/platform/provisioning/${jobId}/complete`, {
-        method: "POST"
-      });
+      try {
+        await apiRequest(`/api/platform/provisioning/${jobId}/complete`, {
+          method: "POST"
+        });
 
-      await refreshAll();
-    } catch (error) {
-      alert(error.message);
-      buttonEl.disabled = false;
-      buttonEl.textContent = "Mark Complete";
+        await refreshAll();
+      } catch (error) {
+        alert(error.message);
+        completeButton.disabled = false;
+        completeButton.textContent = "Mark Complete";
+      }
+
+      return;
+    }
+
+    const migrateButton = event.target.closest("[data-run-migrations]");
+
+    if (migrateButton) {
+      const clubId = migrateButton.dataset.runMigrations;
+
+      migrateButton.disabled = true;
+      migrateButton.textContent = "Migrating...";
+
+      try {
+        const response = await apiRequest(`/api/platform/clubs/${clubId}/migrate`, {
+          method: "POST"
+        });
+
+        alert(`Migrations applied: ${(response.data.migrationsApplied || []).join(", ")}`);
+        await refreshAll();
+      } catch (error) {
+        alert(error.message);
+        migrateButton.disabled = false;
+        migrateButton.textContent = "Run Migrations";
+      }
+
+      return;
     }
   });
 
@@ -308,7 +339,7 @@ export function initPlatformClubs() {
     const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
 
-    message.textContent = "Creating provisioning job...";
+    message.textContent = "Creating club and provisioning database...";
     button.disabled = true;
 
     try {
@@ -317,14 +348,22 @@ export function initPlatformClubs() {
         body: payload
       });
 
+      const migrations = response.data.migrationsApplied?.length
+        ? `<br>Migrations: ${escapeHtml(response.data.migrationsApplied.join(", "))}`
+        : "";
+
       if (response.data.clubAdmin) {
         message.innerHTML = `
           Club created: ${escapeHtml(response.data.databaseName)}<br>
           Club Admin: ${escapeHtml(response.data.clubAdmin.email)}<br>
           Temporary Password: <strong>${escapeHtml(response.data.clubAdmin.temporaryPassword)}</strong>
+          ${migrations}
         `;
       } else {
-        message.textContent = `Provisioning job created: ${response.data.databaseName}`;
+        message.innerHTML = `
+          Club created: ${escapeHtml(response.data.databaseName)}
+          ${migrations}
+        `;
       }
 
       form.reset();
