@@ -152,6 +152,42 @@ async function requireSuperAdmin(request, env) {
   return auth;
 }
 
+async function createCloudflareD1Database(env, databaseName) {
+  if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) {
+    throw new Error("Cloudflare provisioning secrets are missing");
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/d1/database`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.CF_API_TOKEN}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: databaseName
+      })
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.success) {
+    const message =
+      data?.errors?.[0]?.message ||
+      data?.messages?.[0]?.message ||
+      "Failed to create D1 database";
+
+    throw new Error(message);
+  }
+
+  return {
+    id: data.result.uuid || data.result.id,
+    name: data.result.name
+  };
+}
+
 async function setupPassword(request, env) {
   const body = await request.json();
 
@@ -293,30 +329,14 @@ async function getClubContext(request, env) {
   const user = auth.user;
 
   if (!user.club_id) {
-    return json({
-      success: false,
-      error: "No club assigned to this user"
-    }, 400);
+    return json({ success: false, error: "No club assigned to this user" }, 400);
   }
 
   const club = await env.DB.prepare(`
     SELECT
-      id,
-      name,
-      slug,
-      database_name,
-      status,
-      city,
-      country,
-      charter_number,
-      timezone,
-      meeting_day,
-      meeting_time,
-      website,
-      district,
-      division,
-      area,
-      created_at
+      id, name, slug, database_name, status, city, country,
+      charter_number, timezone, meeting_day, meeting_time,
+      website, district, division, area, created_at
     FROM clubs
     WHERE id = ?
   `).bind(user.club_id).first();
@@ -414,6 +434,30 @@ async function createClub(request, env) {
   const databaseName = await generateUniqueDatabaseName(env.DB, slug);
   const createdAt = now();
 
+  let d1Database;
+
+  try {
+    d1Database = await createCloudflareD1Database(env, databaseName);
+  } catch (error) {
+    await writeAudit(env, {
+      userId: auth.user.id,
+      action: "D1_CREATE_FAILED",
+      entityType: "club",
+      entityId: clubId,
+      details: {
+        name,
+        slug,
+        databaseName,
+        error: error.message
+      }
+    });
+
+    return json({
+      success: false,
+      error: `D1 creation failed: ${error.message}`
+    }, 500);
+  }
+
   let adminUserId = null;
   let temporaryPassword = null;
   let firstName = null;
@@ -429,7 +473,7 @@ async function createClub(request, env) {
       name,
       slug,
       databaseName,
-      "PROVISIONING",
+      "ACTIVE",
       body.city || null,
       body.country || null,
       createdAt,
@@ -444,8 +488,8 @@ async function createClub(request, env) {
       clubDbId,
       clubId,
       databaseName,
-      null,
-      "PENDING",
+      d1Database.id,
+      "ACTIVE",
       createdAt
     ),
 
@@ -466,10 +510,10 @@ async function createClub(request, env) {
       jobId,
       clubId,
       databaseName,
-      "PENDING",
-      "REGISTERED",
+      "COMPLETED",
+      "D1_DATABASE_CREATED",
       createdAt,
-      null,
+      createdAt,
       null,
       auth.user.id,
       createdAt
@@ -524,15 +568,16 @@ async function createClub(request, env) {
 
   await writeAudit(env, {
     userId: auth.user.id,
-    action: "CREATE_CLUB",
+    action: "CREATE_CLUB_WITH_D1",
     entityType: "club",
     entityId: clubId,
     details: {
       name,
       slug,
       databaseName,
+      databaseIdentifier: d1Database.id,
       provisioningJobId: jobId,
-      status: "PROVISIONING",
+      status: "ACTIVE",
       adminEmail: adminEmail || null
     }
   });
@@ -558,7 +603,8 @@ async function createClub(request, env) {
       name,
       slug,
       databaseName,
-      status: "PROVISIONING",
+      databaseIdentifier: d1Database.id,
+      status: "ACTIVE",
       provisioningJobId: jobId,
       city: body.city || null,
       country: body.country || null,
@@ -582,7 +628,7 @@ async function completeProvisioning(request, env, jobId) {
   if (!auth.ok) return auth.response;
 
   const job = await env.DB.prepare(`
-    SELECT id, club_id, database_name, status
+    SELECT id, club_id, database_name
     FROM provisioning_jobs
     WHERE id = ?
   `).bind(jobId).first();
@@ -601,15 +647,11 @@ async function completeProvisioning(request, env, jobId) {
     `).bind("COMPLETED", "COMPLETED", completedAt, jobId),
 
     env.DB.prepare(`
-      UPDATE clubs
-      SET status = ?
-      WHERE id = ?
+      UPDATE clubs SET status = ? WHERE id = ?
     `).bind("ACTIVE", job.club_id),
 
     env.DB.prepare(`
-      UPDATE club_databases
-      SET status = ?
-      WHERE club_id = ?
+      UPDATE club_databases SET status = ? WHERE club_id = ?
     `).bind("ACTIVE", job.club_id)
   ]);
 
@@ -633,67 +675,6 @@ async function completeProvisioning(request, env, jobId) {
       status: "COMPLETED",
       clubStatus: "ACTIVE",
       completedAt
-    }
-  });
-}
-
-async function failProvisioning(request, env, jobId) {
-  const auth = await requireSuperAdmin(request, env);
-  if (!auth.ok) return auth.response;
-
-  const body = await request.json().catch(() => ({}));
-  const errorMessage = String(body.errorMessage || "Provisioning failed").trim();
-
-  const job = await env.DB.prepare(`
-    SELECT id, club_id, database_name
-    FROM provisioning_jobs
-    WHERE id = ?
-  `).bind(jobId).first();
-
-  if (!job) {
-    return json({ success: false, error: "Provisioning job not found" }, 404);
-  }
-
-  await env.DB.batch([
-    env.DB.prepare(`
-      UPDATE provisioning_jobs
-      SET status = ?, current_step = ?, error_message = ?
-      WHERE id = ?
-    `).bind("FAILED", "FAILED", errorMessage, jobId),
-
-    env.DB.prepare(`
-      UPDATE clubs
-      SET status = ?
-      WHERE id = ?
-    `).bind("PROVISIONING", job.club_id),
-
-    env.DB.prepare(`
-      UPDATE club_databases
-      SET status = ?
-      WHERE club_id = ?
-    `).bind("FAILED", job.club_id)
-  ]);
-
-  await writeAudit(env, {
-    userId: auth.user.id,
-    action: "PROVISIONING_FAILED",
-    entityType: "provisioning_job",
-    entityId: jobId,
-    details: {
-      clubId: job.club_id,
-      databaseName: job.database_name,
-      errorMessage
-    }
-  });
-
-  return json({
-    success: true,
-    data: {
-      id: jobId,
-      clubId: job.club_id,
-      databaseName: job.database_name,
-      status: "FAILED",
-      errorMessage
     }
   });
 }
@@ -738,28 +719,16 @@ async function listProvisioningJobs(request, env) {
 }
 
 async function getPlatformStats(env) {
-  const totalClubs = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM clubs
-  `).first();
-
-  const activeClubs = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM clubs WHERE status = 'ACTIVE'
-  `).first();
-
-  const provisioningClubs = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM clubs WHERE status = 'PROVISIONING'
-  `).first();
+  const totalClubs = await env.DB.prepare(`SELECT COUNT(*) AS count FROM clubs`).first();
+  const activeClubs = await env.DB.prepare(`SELECT COUNT(*) AS count FROM clubs WHERE status = 'ACTIVE'`).first();
+  const provisioningClubs = await env.DB.prepare(`SELECT COUNT(*) AS count FROM clubs WHERE status = 'PROVISIONING'`).first();
+  const users = await env.DB.prepare(`SELECT COUNT(*) AS count FROM users`).first();
+  const auditEvents = await env.DB.prepare(`SELECT COUNT(*) AS count FROM audit_logs`).first();
 
   const pendingProvisioningJobs = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM provisioning_jobs WHERE status IN ('PENDING', 'RUNNING')
-  `).first();
-
-  const users = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM users
-  `).first();
-
-  const auditEvents = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM audit_logs
+    SELECT COUNT(*) AS count
+    FROM provisioning_jobs
+    WHERE status IN ('PENDING', 'RUNNING')
   `).first();
 
   const latestClubs = await env.DB.prepare(`
@@ -863,9 +832,7 @@ async function createUser(request, env) {
   if (!email) return json({ success: false, error: "Email is required" }, 400);
   if (!role) return json({ success: false, error: "Role is required" }, 400);
 
-  const existing = await env.DB.prepare(`
-    SELECT id FROM users WHERE email = ?
-  `).bind(email).first();
+  const existing = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(email).first();
 
   if (existing) {
     return json({ success: false, error: "User already exists" }, 409);
@@ -954,70 +921,29 @@ async function handleRequest(request, env) {
       runtime: "Cloudflare Worker",
       database: env.DB ? "connected" : "missing",
       auth: "enabled",
-      provisioning: "enabled"
+      automaticD1Provisioning: "enabled"
     });
   }
 
-  if (url.pathname === "/api/setup/password" && request.method === "POST") {
-    return setupPassword(request, env);
-  }
+  if (url.pathname === "/api/setup/password" && request.method === "POST") return setupPassword(request, env);
+  if (url.pathname === "/api/auth/login" && request.method === "POST") return login(request, env);
+  if (url.pathname === "/api/auth/logout" && request.method === "POST") return logout(request, env);
+  if (url.pathname === "/api/auth/me" && request.method === "GET") return me(request, env);
 
-  if (url.pathname === "/api/auth/login" && request.method === "POST") {
-    return login(request, env);
-  }
+  if (url.pathname === "/api/club/context" && request.method === "GET") return getClubContext(request, env);
 
-  if (url.pathname === "/api/auth/logout" && request.method === "POST") {
-    return logout(request, env);
-  }
-
-  if (url.pathname === "/api/auth/me" && request.method === "GET") {
-    return me(request, env);
-  }
-
-  if (url.pathname === "/api/club/context" && request.method === "GET") {
-    return getClubContext(request, env);
-  }
-
-  if (url.pathname === "/api/platform/stats" && request.method === "GET") {
-    return getPlatformStats(env);
-  }
-
-  if (url.pathname === "/api/platform/clubs" && request.method === "GET") {
-    return listClubs(env);
-  }
-
-  if (url.pathname === "/api/platform/clubs" && request.method === "POST") {
-    return createClub(request, env);
-  }
-
-  if (url.pathname === "/api/platform/provisioning" && request.method === "GET") {
-    return listProvisioningJobs(request, env);
-  }
+  if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
+  if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
+  if (url.pathname === "/api/platform/clubs" && request.method === "POST") return createClub(request, env);
+  if (url.pathname === "/api/platform/provisioning" && request.method === "GET") return listProvisioningJobs(request, env);
+  if (url.pathname === "/api/platform/audit" && request.method === "GET") return listAuditLogs(request, env);
+  if (url.pathname === "/api/platform/roles" && request.method === "GET") return listRoles();
+  if (url.pathname === "/api/platform/users" && request.method === "GET") return listUsers(request, env);
+  if (url.pathname === "/api/platform/users" && request.method === "POST") return createUser(request, env);
 
   const completeMatch = url.pathname.match(/^\/api\/platform\/provisioning\/([^/]+)\/complete$/);
   if (completeMatch && request.method === "POST") {
     return completeProvisioning(request, env, completeMatch[1]);
-  }
-
-  const failMatch = url.pathname.match(/^\/api\/platform\/provisioning\/([^/]+)\/fail$/);
-  if (failMatch && request.method === "POST") {
-    return failProvisioning(request, env, failMatch[1]);
-  }
-
-  if (url.pathname === "/api/platform/audit" && request.method === "GET") {
-    return listAuditLogs(request, env);
-  }
-
-  if (url.pathname === "/api/platform/roles" && request.method === "GET") {
-    return listRoles();
-  }
-
-  if (url.pathname === "/api/platform/users" && request.method === "GET") {
-    return listUsers(request, env);
-  }
-
-  if (url.pathname === "/api/platform/users" && request.method === "POST") {
-    return createUser(request, env);
   }
 
   return json({ success: false, error: "Route not found" }, 404);
