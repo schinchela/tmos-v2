@@ -4,3 +4,8 @@ compatibility_date = "2025-06-01"
 
 workers_dev = true
 preview_urls = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tmos-platform"
+database_id = "9579e68f-5abc-46aa-a380-b3ca52bec7fc"
