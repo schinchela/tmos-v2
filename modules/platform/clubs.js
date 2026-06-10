@@ -1,6 +1,7 @@
 import { apiRequest } from "../../assets/js/api.js";
 
 let clubsCache = [];
+let provisioningCache = [];
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -20,14 +21,30 @@ function databaseNameFromCode(code) {
   return `tmos-${clean || "club"}`;
 }
 
+function statusBadge(status) {
+  const value = String(status || "").toUpperCase();
+
+  if (["FAILED", "SUSPENDED", "ARCHIVED"].includes(value)) {
+    return `<span class="badge danger">${escapeHtml(value)}</span>`;
+  }
+
+  if (["PENDING", "PROVISIONING", "RUNNING"].includes(value)) {
+    return `<span class="badge warning">${escapeHtml(value)}</span>`;
+  }
+
+  return `<span class="badge">${escapeHtml(value || "ACTIVE")}</span>`;
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString();
+}
+
 function renderClubsRows(clubs) {
   if (!clubs.length) {
     return `
       <tr>
-        <td>No clubs yet</td>
-        <td>-</td>
-        <td>-</td>
-        <td><span class="badge warning">Waiting</span></td>
+        <td colspan="5">No clubs yet.</td>
       </tr>
     `;
   }
@@ -40,9 +57,45 @@ function renderClubsRows(clubs) {
       </td>
       <td>${escapeHtml(club.slug)}</td>
       <td><code>${escapeHtml(club.database_name)}</code></td>
-      <td><span class="badge">${escapeHtml(club.status)}</span></td>
+      <td>${statusBadge(club.status)}</td>
+      <td>${escapeHtml(formatDate(club.created_at))}</td>
     </tr>
   `).join("");
+}
+
+function renderProvisioningRows(jobs) {
+  if (!jobs.length) {
+    return `
+      <tr>
+        <td colspan="7">No provisioning jobs yet.</td>
+      </tr>
+    `;
+  }
+
+  return jobs.map((job) => {
+    const canComplete = ["PENDING", "RUNNING", "FAILED"].includes(String(job.status).toUpperCase());
+
+    return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(job.club_name || "Unknown Club")}</strong><br>
+          <small>${escapeHtml(job.club_id)}</small>
+        </td>
+        <td><code>${escapeHtml(job.database_name)}</code></td>
+        <td>${statusBadge(job.status)}</td>
+        <td>${escapeHtml(job.current_step || "-")}</td>
+        <td>${escapeHtml(formatDate(job.started_at))}</td>
+        <td>${escapeHtml(job.error_message || "-")}</td>
+        <td>
+          ${
+            canComplete
+              ? `<button class="ghost-btn small-btn" data-complete-provisioning="${escapeHtml(job.id)}">Mark Complete</button>`
+              : `<span class="badge">Done</span>`
+          }
+        </td>
+      </tr>
+    `;
+  }).join("");
 }
 
 async function loadClubs() {
@@ -51,7 +104,7 @@ async function loadClubs() {
 
   table.innerHTML = `
     <tr>
-      <td colspan="4">Loading clubs...</td>
+      <td colspan="5">Loading clubs...</td>
     </tr>
   `;
 
@@ -62,10 +115,40 @@ async function loadClubs() {
   } catch (error) {
     table.innerHTML = `
       <tr>
-        <td colspan="4">Failed to load clubs: ${escapeHtml(error.message)}</td>
+        <td colspan="5">Failed to load clubs: ${escapeHtml(error.message)}</td>
       </tr>
     `;
   }
+}
+
+async function loadProvisioningJobs() {
+  const table = document.getElementById("provisioningTable");
+  if (!table) return;
+
+  table.innerHTML = `
+    <tr>
+      <td colspan="7">Loading provisioning jobs...</td>
+    </tr>
+  `;
+
+  try {
+    const response = await apiRequest("/api/platform/provisioning");
+    provisioningCache = response.data || [];
+    table.innerHTML = renderProvisioningRows(provisioningCache);
+  } catch (error) {
+    table.innerHTML = `
+      <tr>
+        <td colspan="7">Failed to load provisioning jobs: ${escapeHtml(error.message)}</td>
+      </tr>
+    `;
+  }
+}
+
+async function refreshAll() {
+  await Promise.all([
+    loadClubs(),
+    loadProvisioningJobs()
+  ]);
 }
 
 export function renderPlatformClubs() {
@@ -75,7 +158,7 @@ export function renderPlatformClubs() {
       <h3>Clubs</h3>
       <p>
         Create and manage Toastmasters clubs. Each club receives its own isolated
-        Cloudflare D1 database identity with a short unique database name.
+        Cloudflare D1 database identity and provisioning lifecycle.
       </p>
     </section>
 
@@ -123,9 +206,35 @@ export function renderPlatformClubs() {
           <strong id="dbPreview">tmos-club</strong>
         </div>
 
-        <button class="primary-btn" id="provisionBtn" type="submit">Provision Club</button>
+        <button class="primary-btn" id="provisionBtn" type="submit">Create Provisioning Job</button>
         <p class="form-message" id="clubFormMessage"></p>
       </form>
+    </section>
+
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Provisioning Jobs</h3>
+        <button class="ghost-btn" id="refreshProvisioningBtn" type="button">Refresh</button>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Club</th>
+            <th>Database</th>
+            <th>Status</th>
+            <th>Step</th>
+            <th>Started</th>
+            <th>Error</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="provisioningTable">
+          <tr>
+            <td colspan="7">Loading provisioning jobs...</td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <section class="module-panel">
@@ -141,11 +250,12 @@ export function renderPlatformClubs() {
             <th>Short Code</th>
             <th>D1 Database</th>
             <th>Status</th>
+            <th>Created</th>
           </tr>
         </thead>
         <tbody id="clubsTable">
           <tr>
-            <td colspan="4">Loading clubs...</td>
+            <td colspan="5">Loading clubs...</td>
           </tr>
         </tbody>
       </table>
@@ -160,6 +270,7 @@ export function initPlatformClubs() {
   const message = document.getElementById("clubFormMessage");
   const button = document.getElementById("provisionBtn");
   const refreshBtn = document.getElementById("refreshClubsBtn");
+  const refreshProvisioningBtn = document.getElementById("refreshProvisioningBtn");
 
   function updatePreview() {
     preview.textContent = databaseNameFromCode(codeInput.value);
@@ -167,6 +278,29 @@ export function initPlatformClubs() {
 
   codeInput?.addEventListener("input", updatePreview);
   refreshBtn?.addEventListener("click", loadClubs);
+  refreshProvisioningBtn?.addEventListener("click", loadProvisioningJobs);
+
+  document.addEventListener("click", async (event) => {
+    const buttonEl = event.target.closest("[data-complete-provisioning]");
+    if (!buttonEl) return;
+
+    const jobId = buttonEl.dataset.completeProvisioning;
+
+    buttonEl.disabled = true;
+    buttonEl.textContent = "Completing...";
+
+    try {
+      await apiRequest(`/api/platform/provisioning/${jobId}/complete`, {
+        method: "POST"
+      });
+
+      await refreshAll();
+    } catch (error) {
+      alert(error.message);
+      buttonEl.disabled = false;
+      buttonEl.textContent = "Mark Complete";
+    }
+  });
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -174,7 +308,7 @@ export function initPlatformClubs() {
     const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
 
-    message.textContent = "Provisioning club...";
+    message.textContent = "Creating provisioning job...";
     button.disabled = true;
 
     try {
@@ -183,10 +317,10 @@ export function initPlatformClubs() {
         body: payload
       });
 
-      message.textContent = `Club created successfully: ${response.data.databaseName}`;
+      message.textContent = `Provisioning job created: ${response.data.databaseName}`;
       form.reset();
       updatePreview();
-      await loadClubs();
+      await refreshAll();
     } catch (error) {
       message.textContent = error.message;
     } finally {
@@ -195,5 +329,5 @@ export function initPlatformClubs() {
   });
 
   updatePreview();
-  loadClubs();
+  refreshAll();
 }
