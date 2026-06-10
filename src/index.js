@@ -675,7 +675,248 @@ async function updateMember(request, env, memberId) {
     }
   });
 }
+async function getClubSettings(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  if (!auth.user.club_id) {
+    return json(
+      { success: false, error: "No club assigned to this user" },
+      400
+    );
+  }
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        key,
+        value,
+        updated_at
+      FROM club_settings
+      ORDER BY key
+    `
+  );
+
+  const rows =
+    result?.[0]?.results ||
+    result?.results ||
+    [];
+
+  const settings = {};
+
+  rows.forEach((row) => {
+    settings[row.key] = row.value;
+  });
+
+  return json({
+    success: true,
+    data: settings
+  });
+}
+
+async function updateClubSettings(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  if (!auth.user.club_id) {
+    return json(
+      { success: false, error: "No club assigned to this user" },
+      400
+    );
+  }
+
+  const officerTermCycle =
+    body.officerTermCycle || "YEARLY";
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT OR REPLACE INTO club_settings (
+        key,
+        value,
+        updated_at
+      )
+      VALUES (
+        'officer_term_cycle',
+        ${sqlValue(officerTermCycle)},
+        ${sqlValue(now())}
+      )
+    `
+  );
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "UPDATE_CLUB_SETTINGS",
+    entityType: "club_settings",
+    details: {
+      clubId: auth.user.club_id,
+      officerTermCycle
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      officerTermCycle
+    }
+  });
+}
+
+async function listOfficerTerms(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM officer_terms
+      ORDER BY term_start DESC
+    `
+  );
+
+  return json({
+    success: true,
+    data:
+      result?.[0]?.results ||
+      result?.results ||
+      []
+  });
+}
+
+async function createOfficerTerm(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const termId = id("term");
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO officer_terms (
+        id,
+        term_label,
+        term_cycle,
+        term_start,
+        term_end,
+        status,
+        created_at
+      )
+      VALUES (
+        ${sqlValue(termId)},
+        ${sqlValue(body.termLabel)},
+        ${sqlValue(body.termCycle)},
+        ${sqlValue(body.termStart)},
+        ${sqlValue(body.termEnd)},
+        'ACTIVE',
+        ${sqlValue(now())}
+      )
+    `
+  );
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "CREATE_OFFICER_TERM",
+    entityType: "officer_term",
+    entityId: termId,
+    details: {
+      clubId: auth.user.club_id,
+      termLabel: body.termLabel
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: termId
+    }
+  }, 201);
+}
+
+async function assignOfficerTerm(
+  request,
+  env,
+  memberId
+) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const assignmentId = id("officer");
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO member_officer_terms (
+        id,
+        member_id,
+        officer_role,
+        term_id,
+        term_label,
+        term_start,
+        term_end,
+        status,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(assignmentId)},
+        ${sqlValue(memberId)},
+        ${sqlValue(body.officerRole)},
+        ${sqlValue(body.termId)},
+        ${sqlValue(body.termLabel)},
+        ${sqlValue(body.termStart)},
+        ${sqlValue(body.termEnd)},
+        'ACTIVE',
+        ${sqlValue(body.notes)},
+        ${sqlValue(now())},
+        ${sqlValue(now())}
+      )
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE members
+      SET active_officer_role =
+        ${sqlValue(body.officerRole)}
+      WHERE id =
+        ${sqlValue(memberId)}
+    `
+  );
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "ASSIGN_OFFICER_TERM",
+    entityType: "member",
+    entityId: memberId,
+    details: {
+      officerRole: body.officerRole,
+      termLabel: body.termLabel
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: assignmentId
+    }
+  }, 201);
+}
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -1411,6 +1652,49 @@ if (memberDetailsMatch && request.method === "GET") {
   const updateMemberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
 if (updateMemberMatch && request.method === "PUT") {
   return updateMember(request, env, updateMemberMatch[1]);
+}
+  if (
+  url.pathname === "/api/club/settings" &&
+  request.method === "GET"
+) {
+  return getClubSettings(request, env);
+}
+
+if (
+  url.pathname === "/api/club/settings" &&
+  request.method === "PUT"
+) {
+  return updateClubSettings(request, env);
+}
+
+if (
+  url.pathname === "/api/officer-terms" &&
+  request.method === "GET"
+) {
+  return listOfficerTerms(request, env);
+}
+
+if (
+  url.pathname === "/api/officer-terms" &&
+  request.method === "POST"
+) {
+  return createOfficerTerm(request, env);
+}
+
+const officerAssignmentMatch =
+  url.pathname.match(
+    /^\/api\/members\/([^/]+)\/officer-terms$/
+  );
+
+if (
+  officerAssignmentMatch &&
+  request.method === "POST"
+) {
+  return assignOfficerTerm(
+    request,
+    env,
+    officerAssignmentMatch[1]
+  );
 }
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
