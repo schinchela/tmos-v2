@@ -104,37 +104,77 @@ export function renderPlatformDashboard() {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>Cloudflare Pages</td>
-            <td>Frontend application</td>
-            <td><span class="badge">Live</span></td>
-          </tr>
-          <tr>
-            <td>Cloudflare Worker</td>
-            <td>Backend API gateway</td>
-            <td><span class="badge">Live</span></td>
-          </tr>
-          <tr>
-            <td>Platform D1</td>
-            <td>Clubs, users, audit logs and database registry</td>
-            <td><span class="badge">Connected</span></td>
-          </tr>
-          <tr>
-            <td>Club D1 Databases</td>
-            <td>One isolated database per club</td>
-            <td><span class="badge warning">Provisioning Engine Next</span></td>
-          </tr>
-          <tr>
-            <td>Authentication</td>
-            <td>SuperAdmin and club user login</td>
-            <td><span class="badge warning">Planned</span></td>
-          </tr>
-          <tr>
-            <td>RBAC</td>
-            <td>Role-based permissions by platform and club</td>
-            <td><span class="badge warning">Planned</span></td>
-          </tr>
-        </tbody>
+  <tr>
+    <td>Cloudflare Pages</td>
+    <td>Frontend application and role-based UI shell</td>
+    <td><span class="badge">Live</span></td>
+  </tr>
+  <tr>
+    <td>Cloudflare Worker</td>
+    <td>Backend API gateway, auth, provisioning and tenant routing</td>
+    <td><span class="badge">Live</span></td>
+  </tr>
+  <tr>
+    <td>Platform D1</td>
+    <td>Clubs, users, sessions, audit logs and database registry</td>
+    <td><span class="badge">Connected</span></td>
+  </tr>
+  <tr>
+    <td>Automatic D1 Provisioning</td>
+    <td>Creates one Cloudflare D1 database per club</td>
+    <td><span class="badge">Enabled</span></td>
+  </tr>
+  <tr>
+    <td>Schema Migration Engine</td>
+    <td>Applies club schema migrations during provisioning and upgrades</td>
+    <td><span class="badge">Enabled</span></td>
+  </tr>
+  <tr>
+    <td>Club D1 Databases</td>
+    <td>Isolated tenant database per club</td>
+    <td><span class="badge">Active</span></td>
+  </tr>
+  <tr>
+    <td>Authentication</td>
+    <td>SuperAdmin and club user login with sessions</td>
+    <td><span class="badge">Live</span></td>
+  </tr>
+  <tr>
+    <td>RBAC</td>
+    <td>Platform roles and club roles with separate portal routing</td>
+    <td><span class="badge">Live</span></td>
+  </tr>
+  <tr>
+    <td>Club Portal</td>
+    <td>Role-based club dashboard and module shell</td>
+    <td><span class="badge">Live</span></td>
+  </tr>
+  <tr>
+    <td>Members Module</td>
+    <td>Club-level member creation and listing in club D1</td>
+    <td><span class="badge">Live</span></td>
+  </tr>
+  <tr>
+    <td>Meetings Module</td>
+    <td>Agenda, roles, speeches, attendance and Pathways tracking</td>
+    <td><span class="badge warning">Planned</span></td>
+  </tr>
+  <tr>
+    <td>Guest CRM</td>
+    <td>Guest tracking and conversion pipeline</td>
+    <td><span class="badge warning">Planned</span></td>
+  </tr>
+  <tr>
+    <td>Education & Pathways</td>
+    <td>Pathways, speeches, awards and member progress tracking</td>
+    <td><span class="badge warning">Planned</span></td>
+  </tr>
+  <tr>
+    <td>Reports & Analytics</td>
+    <td>DCP, attendance, membership and leadership reporting</td>
+    <td><span class="badge warning">Planned</span></td>
+  </tr>
+</tbody>
       </table>
     </section>
   `;
