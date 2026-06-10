@@ -1,11 +1,16 @@
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400"
+};
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization"
+      ...CORS_HEADERS
     }
   });
 }
@@ -68,7 +73,7 @@ async function createClub(request, env) {
   }
 
   const clubId = id("club");
-  const databaseId = id("clubdb");
+  const clubDbId = id("clubdb");
   const auditId = id("audit");
   const createdAt = now();
   const createdBy = "superadmin-dev";
@@ -96,7 +101,7 @@ async function createClub(request, env) {
         id, club_id, database_name, database_identifier, status, created_at
       ) VALUES (?, ?, ?, ?, ?, ?)
     `).bind(
-      databaseId,
+      clubDbId,
       clubId,
       databaseName,
       null,
@@ -149,43 +154,57 @@ async function listClubs(env) {
   });
 }
 
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
+async function handleRequest(request, env) {
+  const url = new URL(request.url);
 
-    if (request.method === "OPTIONS") {
-      return json({ success: true });
-    }
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: CORS_HEADERS
+    });
+  }
 
-    if (url.pathname === "/") {
-      return json({
-        success: true,
-        service: "TMOS Enterprise API",
-        version: "v2",
-        status: "online"
-      });
-    }
-
-    if (url.pathname === "/health") {
-      return json({
-        success: true,
-        status: "healthy",
-        runtime: "Cloudflare Worker",
-        database: "connected"
-      });
-    }
-
-    if (url.pathname === "/api/platform/clubs" && request.method === "GET") {
-      return listClubs(env);
-    }
-
-    if (url.pathname === "/api/platform/clubs" && request.method === "POST") {
-      return createClub(request, env);
-    }
-
+  if (url.pathname === "/") {
     return json({
-      success: false,
-      error: "Route not found"
-    }, 404);
+      success: true,
+      service: "TMOS Enterprise API",
+      version: "v2",
+      status: "online"
+    });
+  }
+
+  if (url.pathname === "/health") {
+    return json({
+      success: true,
+      status: "healthy",
+      runtime: "Cloudflare Worker",
+      database: env.DB ? "connected" : "missing"
+    });
+  }
+
+  if (url.pathname === "/api/platform/clubs" && request.method === "GET") {
+    return listClubs(env);
+  }
+
+  if (url.pathname === "/api/platform/clubs" && request.method === "POST") {
+    return createClub(request, env);
+  }
+
+  return json({
+    success: false,
+    error: "Route not found"
+  }, 404);
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await handleRequest(request, env, ctx);
+    } catch (error) {
+      return json({
+        success: false,
+        error: error.message || "Internal server error"
+      }, 500);
+    }
   }
 };
