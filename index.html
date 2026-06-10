@@ -1,10 +1,57 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>TMOS v2</title>
-  </head>
-  <body>
-    <h1>TMOS Enterprise v2 is live</h1>
-    <p>Cloudflare Pages is working.</p>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TMOS Enterprise v2</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div>
+          <h1>TMOS</h1>
+          <span>Enterprise v2</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-module="dashboard">Dashboard</button>
+        <button class="nav-item" data-module="clubs">Clubs</button>
+        <button class="nav-item" data-module="members">Members</button>
+        <button class="nav-item" data-module="meetings">Meetings</button>
+        <button class="nav-item" data-module="guests">Guests</button>
+        <button class="nav-item" data-module="education">Education</button>
+        <button class="nav-item" data-module="finance">Finance</button>
+        <button class="nav-item" data-module="reports">Reports</button>
+        <button class="nav-item" data-module="settings">Settings</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>Platform Mode</span>
+        <strong>SuperAdmin</strong>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Toastmasters Operating System</p>
+          <h2 id="pageTitle">Dashboard</h2>
+        </div>
+
+        <div class="top-actions">
+          <button class="ghost-btn">Search</button>
+          <button class="primary-btn">Create Club</button>
+        </div>
+      </header>
+
+      <section id="app" class="content"></section>
+    </main>
+  </div>
+
+  <script src="assets/js/app.js"></script>
+</body>
 </html>
