@@ -31,6 +31,28 @@ function cleanSlug(value) {
     .slice(0, 12);
 }
 
+async function writeAudit(env, {
+  userId = "superadmin-dev",
+  action,
+  entityType,
+  entityId = null,
+  details = {}
+}) {
+  await env.DB.prepare(`
+    INSERT INTO audit_logs (
+      id, user_id, action, entity_type, entity_id, details, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id("audit"),
+    userId,
+    action,
+    entityType,
+    entityId,
+    JSON.stringify(details),
+    now()
+  ).run();
+}
+
 async function generateUniqueDatabaseName(db, baseSlug) {
   const base = `tmos-${baseSlug}`;
   let candidate = base;
@@ -74,7 +96,6 @@ async function createClub(request, env) {
 
   const clubId = id("club");
   const clubDbId = id("clubdb");
-  const auditId = id("audit");
   const createdAt = now();
   const createdBy = "superadmin-dev";
   const databaseName = await generateUniqueDatabaseName(env.DB, slug);
@@ -114,7 +135,7 @@ async function createClub(request, env) {
         id, user_id, action, entity_type, entity_id, details, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      auditId,
+      id("audit"),
       createdBy,
       "CREATE_CLUB",
       "club",
@@ -187,6 +208,27 @@ async function getPlatformStats(env) {
   });
 }
 
+async function listAuditLogs(request, env) {
+  const url = new URL(request.url);
+  const limitParam = Number(url.searchParams.get("limit") || 25);
+  const limit = Math.min(Math.max(limitParam, 1), 100);
+
+  const result = await env.DB
+    .prepare(`
+      SELECT id, user_id, action, entity_type, entity_id, details, created_at
+      FROM audit_logs
+      ORDER BY created_at DESC
+      LIMIT ?
+    `)
+    .bind(limit)
+    .all();
+
+  return json({
+    success: true,
+    data: result.results || []
+  });
+}
+
 async function handleRequest(request, env) {
   const url = new URL(request.url);
 
@@ -227,6 +269,10 @@ async function handleRequest(request, env) {
     return createClub(request, env);
   }
 
+  if (url.pathname === "/api/platform/audit" && request.method === "GET") {
+    return listAuditLogs(request, env);
+  }
+
   return json({
     success: false,
     error: "Route not found"
@@ -238,6 +284,14 @@ export default {
     try {
       return await handleRequest(request, env, ctx);
     } catch (error) {
+      try {
+        await writeAudit(env, {
+          action: "API_ERROR",
+          entityType: "system",
+          details: { message: error.message || "Internal server error" }
+        });
+      } catch (_) {}
+
       return json({
         success: false,
         error: error.message || "Internal server error"
