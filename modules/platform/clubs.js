@@ -317,7 +317,16 @@ export function initPlatformClubs() {
         body: payload
       });
 
-      message.textContent = `Provisioning job created: ${response.data.databaseName}`;
+      if (response.data.clubAdmin) {
+        message.innerHTML = `
+          Club created: ${escapeHtml(response.data.databaseName)}<br>
+          Club Admin: ${escapeHtml(response.data.clubAdmin.email)}<br>
+          Temporary Password: <strong>${escapeHtml(response.data.clubAdmin.temporaryPassword)}</strong>
+        `;
+      } else {
+        message.textContent = `Provisioning job created: ${response.data.databaseName}`;
+      }
+
       form.reset();
       updatePreview();
       await refreshAll();
