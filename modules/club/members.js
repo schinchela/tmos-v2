@@ -34,7 +34,7 @@ function statusBadge(status) {
 function renderMemberRows(members) {
   if (!members.length) {
     return `
-      <tr class="clickable-row" data-member-id="${escapeHtml(member.id)}">
+      <tr>
         <td colspan="8">
           No members found. Add your first club member to begin tracking attendance,
           speeches, pathways, officer terms and goals.
@@ -44,7 +44,7 @@ function renderMemberRows(members) {
   }
 
   return members.map((member) => `
-    <tr>
+    <tr class="clickable-row" data-member-id="${escapeHtml(member.id)}">
       <td>
         <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong><br>
         <small>${escapeHtml(member.email || "-")}</small>
