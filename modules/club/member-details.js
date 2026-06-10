@@ -2,6 +2,7 @@ import { apiRequest } from "../../assets/js/api.js";
 
 let currentMemberId = null;
 let member360Data = null;
+let officerTermsCache = [];
 let editMode = false;
 
 function escapeHtml(value) {
@@ -130,7 +131,7 @@ function renderEditForm(member) {
           <label>
             Pathway Level
             <select name="pathwayLevel">
-              ${[0,1,2,3,4,5].map((level) => `
+              ${[0, 1, 2, 3, 4, 5].map((level) => `
                 <option value="${level}" ${Number(member.pathway_level || 0) === level ? "selected" : ""}>
                   ${level === 0 ? "Not Started" : `Level ${level}`}
                 </option>
@@ -165,7 +166,6 @@ function renderEditForm(member) {
     </section>
   `;
 }
-
 function renderProfile(member) {
   if (editMode) return renderEditForm(member);
 
@@ -178,18 +178,51 @@ function renderProfile(member) {
 
       <div class="enterprise-form">
         <div class="form-grid">
-          <div class="card"><span>Name</span><strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong></div>
-          <div class="card"><span>Toastmasters ID</span><strong>${escapeHtml(member.toastmasters_id || "-")}</strong></div>
-          <div class="card"><span>Email</span><strong>${escapeHtml(member.email || "-")}</strong></div>
-          <div class="card"><span>Phone</span><strong>${escapeHtml(member.phone || "-")}</strong></div>
-          <div class="card"><span>Membership Type</span><strong>${escapeHtml(member.membership_type || "-")}</strong></div>
-          <div class="card"><span>Join Date</span><strong>${escapeHtml(formatDate(member.join_date))}</strong></div>
-          <div class="card"><span>Renewal Date</span><strong>${escapeHtml(formatDate(member.renewal_date))}</strong></div>
-          <div class="card"><span>Current Officer Role</span><strong>${escapeHtml(member.active_officer_role || "-")}</strong></div>
+          <div class="card">
+            <span>Name</span>
+            <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong>
+          </div>
+
+          <div class="card">
+            <span>Toastmasters ID</span>
+            <strong>${escapeHtml(member.toastmasters_id || "-")}</strong>
+          </div>
+
+          <div class="card">
+            <span>Email</span>
+            <strong>${escapeHtml(member.email || "-")}</strong>
+          </div>
+
+          <div class="card">
+            <span>Phone</span>
+            <strong>${escapeHtml(member.phone || "-")}</strong>
+          </div>
+
+          <div class="card">
+            <span>Membership Type</span>
+            <strong>${escapeHtml(member.membership_type || "-")}</strong>
+          </div>
+
+          <div class="card">
+            <span>Join Date</span>
+            <strong>${escapeHtml(formatDate(member.join_date))}</strong>
+          </div>
+
+          <div class="card">
+            <span>Renewal Date</span>
+            <strong>${escapeHtml(formatDate(member.renewal_date))}</strong>
+          </div>
+
+          <div class="card">
+            <span>Current Officer Role</span>
+            <strong>${escapeHtml(member.active_officer_role || "-")}</strong>
+          </div>
         </div>
 
         <div class="module-panel">
-          <div class="panel-header"><h3>Notes</h3></div>
+          <div class="panel-header">
+            <h3>Notes</h3>
+          </div>
           <div class="enterprise-form">
             <p>${escapeHtml(member.notes || "No notes added yet.")}</p>
           </div>
@@ -208,16 +241,22 @@ function renderListTable(title, rows, columns, emptyDescription) {
         <h3>${escapeHtml(title)}</h3>
         <span class="badge">${rows.length}</span>
       </div>
+
       <table class="table">
         <thead>
-          <tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>
+          <tr>
+            ${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}
+          </tr>
         </thead>
         <tbody>
           ${rows.map((row) => `
             <tr>
               ${columns.map((column) => {
                 const rawValue = row[column.key];
-                const value = column.format ? column.format(rawValue, row) : rawValue || "-";
+                const value = column.format
+                  ? column.format(rawValue, row)
+                  : rawValue || "-";
+
                 return `<td>${escapeHtml(value)}</td>`;
               }).join("")}
             </tr>
@@ -228,6 +267,80 @@ function renderListTable(title, rows, columns, emptyDescription) {
   `;
 }
 
+function renderOfficerAssignmentPanel() {
+  if (!officerTermsCache.length) {
+    return `
+      <section class="module-panel">
+        <div class="panel-header">
+          <h3>Assign Officer Role</h3>
+          <span class="badge warning">No Terms</span>
+        </div>
+
+        <div class="enterprise-form">
+          <p>
+            No officer terms are available. Go to Club Settings and generate officer
+            terms before assigning officer roles.
+          </p>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Assign Officer Role</h3>
+        <span class="badge">Leadership</span>
+      </div>
+
+      <form class="enterprise-form" id="assignOfficerForm">
+        <div class="form-grid">
+          <label>
+            Officer Role
+            <select name="officerRole" required>
+              <option value="">Select role</option>
+              <option value="PRESIDENT">President</option>
+              <option value="VPE">Vice President Education</option>
+              <option value="VPM">Vice President Membership</option>
+              <option value="VPPR">Vice President Public Relations</option>
+              <option value="SECRETARY">Secretary</option>
+              <option value="TREASURER">Treasurer</option>
+              <option value="SAA">Sergeant at Arms</option>
+            </select>
+          </label>
+
+          <label>
+            Officer Term
+            <select name="termId" id="officerTermSelect" required>
+              <option value="">Select term</option>
+              ${officerTermsCache.map((term) => `
+                <option
+                  value="${escapeHtml(term.id)}"
+                  data-term-label="${escapeHtml(term.term_label)}"
+                  data-term-start="${escapeHtml(term.term_start)}"
+                  data-term-end="${escapeHtml(term.term_end)}"
+                >
+                  ${escapeHtml(term.term_label)}
+                </option>
+              `).join("")}
+            </select>
+          </label>
+
+          <label>
+            Notes
+            <input name="notes" placeholder="Optional leadership notes..." />
+          </label>
+        </div>
+
+        <button class="primary-btn" id="assignOfficerBtn" type="submit">
+          Assign Officer Role
+        </button>
+
+        <p class="form-message" id="assignOfficerMessage"></p>
+      </form>
+    </section>
+  `;
+}
 function renderMember360(data) {
   const member = data.member;
 
@@ -235,7 +348,11 @@ function renderMember360(data) {
     <section class="hero">
       <p class="eyebrow">Member 360</p>
       <h3>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</h3>
-      <p>Complete member profile across membership, Pathways, speeches, attendance, awards, goals and officer leadership history.</p>
+      <p>
+        Complete member profile across membership, Pathways, speeches, attendance,
+        awards, goals and officer leadership history.
+      </p>
+
       <div class="top-actions">
         <button class="ghost-btn" data-route="club-members">Back to Members</button>
         <button class="primary-btn" id="editMemberBtn" type="button">Edit Member</button>
@@ -243,60 +360,110 @@ function renderMember360(data) {
     </section>
 
     <section class="grid">
-      <article class="card"><span>Membership Status</span><strong>${escapeHtml(member.membership_status || "ACTIVE")}</strong></article>
-      <article class="card"><span>Pathway</span><strong>${escapeHtml(member.pathway_name || "Not Set")}</strong></article>
-      <article class="card"><span>Pathway Level</span><strong>${escapeHtml(member.pathway_level ?? 0)}</strong></article>
-      <article class="card"><span>Officer Role</span><strong>${escapeHtml(member.active_officer_role || "None")}</strong></article>
+      <article class="card">
+        <span>Membership Status</span>
+        <strong>${escapeHtml(member.membership_status || "ACTIVE")}</strong>
+      </article>
+
+      <article class="card">
+        <span>Pathway</span>
+        <strong>${escapeHtml(member.pathway_name || "Not Set")}</strong>
+      </article>
+
+      <article class="card">
+        <span>Pathway Level</span>
+        <strong>${escapeHtml(member.pathway_level ?? 0)}</strong>
+      </article>
+
+      <article class="card">
+        <span>Officer Role</span>
+        <strong>${escapeHtml(member.active_officer_role || "None")}</strong>
+      </article>
     </section>
 
     ${renderProfile(member)}
 
-    ${renderListTable("Pathways", data.pathways || [], [
-      { key: "pathway_name", label: "Pathway" },
-      { key: "current_level", label: "Level" },
-      { key: "status", label: "Status" },
-      { key: "started_at", label: "Started", format: formatDate },
-      { key: "completed_at", label: "Completed", format: formatDate }
-    ], "No detailed pathway history yet.")}
+    ${renderOfficerAssignmentPanel()}
 
-    ${renderListTable("Speeches", data.speeches || [], [
-      { key: "speech_title", label: "Title" },
-      { key: "pathway_name", label: "Pathway" },
-      { key: "project_name", label: "Project" },
-      { key: "level_number", label: "Level" },
-      { key: "speech_date", label: "Date", format: formatDate }
-    ], "No speech history yet.")}
+    ${renderListTable(
+      "Officer Terms",
+      data.officerTerms || [],
+      [
+        { key: "officer_role", label: "Role" },
+        { key: "term_label", label: "Term" },
+        { key: "term_start", label: "Start", format: formatDate },
+        { key: "term_end", label: "End", format: formatDate },
+        { key: "status", label: "Status" }
+      ],
+      "No officer history yet. Officer term assignment will populate this section."
+    )}
 
-    ${renderListTable("Attendance", data.attendance || [], [
-      { key: "meeting_date", label: "Date", format: formatDate },
-      { key: "attendance_status", label: "Status" },
-      { key: "role_taken", label: "Role" },
-      { key: "notes", label: "Notes" }
-    ], "No attendance records yet.")}
+    ${renderListTable(
+      "Pathways",
+      data.pathways || [],
+      [
+        { key: "pathway_name", label: "Pathway" },
+        { key: "current_level", label: "Level" },
+        { key: "status", label: "Status" },
+        { key: "started_at", label: "Started", format: formatDate },
+        { key: "completed_at", label: "Completed", format: formatDate }
+      ],
+      "No detailed pathway history yet. Future meetings and education tracking will populate this."
+    )}
 
-    ${renderListTable("Officer Terms", data.officerTerms || [], [
-      { key: "officer_role", label: "Role" },
-      { key: "term_label", label: "Term" },
-      { key: "term_start", label: "Start", format: formatDate },
-      { key: "term_end", label: "End", format: formatDate },
-      { key: "status", label: "Status" }
-    ], "No officer history yet.")}
+    ${renderListTable(
+      "Speeches",
+      data.speeches || [],
+      [
+        { key: "speech_title", label: "Title" },
+        { key: "pathway_name", label: "Pathway" },
+        { key: "project_name", label: "Project" },
+        { key: "level_number", label: "Level" },
+        { key: "speech_date", label: "Date", format: formatDate }
+      ],
+      "No speech history yet. Completed meeting agendas will feed this section."
+    )}
 
-    ${renderListTable("Awards", data.awards || [], [
-      { key: "award_type", label: "Type" },
-      { key: "award_name", label: "Award" },
-      { key: "award_date", label: "Date", format: formatDate },
-      { key: "source", label: "Source" }
-    ], "No awards recorded yet.")}
+    ${renderListTable(
+      "Attendance",
+      data.attendance || [],
+      [
+        { key: "meeting_date", label: "Date", format: formatDate },
+        { key: "attendance_status", label: "Status" },
+        { key: "role_taken", label: "Role" },
+        { key: "notes", label: "Notes" }
+      ],
+      "No attendance records yet. Meeting attendance will populate this automatically."
+    )}
 
-    ${renderListTable("Goals", data.goals || [], [
-      { key: "goal_type", label: "Type" },
-      { key: "goal_title", label: "Goal" },
-      { key: "target_date", label: "Target", format: formatDate },
-      { key: "status", label: "Status" }
-    ], "No member goals recorded yet.")}
+    ${renderListTable(
+      "Awards",
+      data.awards || [],
+      [
+        { key: "award_type", label: "Type" },
+        { key: "award_name", label: "Award" },
+        { key: "award_date", label: "Date", format: formatDate },
+        { key: "source", label: "Source" }
+      ],
+      "No awards recorded yet."
+    )}
 
-    ${emptyState("Mentoring", "Mentor and mentee relationships will be connected here after the mentoring module is added.")}
+    ${renderListTable(
+      "Goals",
+      data.goals || [],
+      [
+        { key: "goal_type", label: "Type" },
+        { key: "goal_title", label: "Goal" },
+        { key: "target_date", label: "Target", format: formatDate },
+        { key: "status", label: "Status" }
+      ],
+      "No member goals recorded yet."
+    )}
+
+    ${emptyState(
+      "Mentoring",
+      "Mentor and mentee relationships will be connected here after the mentoring module is added."
+    )}
   `;
 }
 
@@ -315,8 +482,19 @@ export function renderMemberDetails(memberId) {
   `;
 }
 
+async function loadOfficerTerms() {
+  try {
+    const response = await apiRequest("/api/officer-terms");
+    officerTermsCache = response.data || [];
+  } catch (_) {
+    officerTermsCache = [];
+  }
+}
+
 async function loadMember360() {
   const container = document.getElementById("member360Content");
+
+  await loadOfficerTerms();
 
   const response = await apiRequest(`/api/members/${currentMemberId}`);
   member360Data = response.data;
@@ -329,7 +507,8 @@ async function loadMember360() {
 function bindMember360Events() {
   const editBtn = document.getElementById("editMemberBtn");
   const cancelBtn = document.getElementById("cancelEditBtn");
-  const form = document.getElementById("editMemberForm");
+  const editForm = document.getElementById("editMemberForm");
+  const assignOfficerForm = document.getElementById("assignOfficerForm");
 
   editBtn?.addEventListener("click", () => {
     editMode = true;
@@ -343,12 +522,12 @@ function bindMember360Events() {
     bindMember360Events();
   });
 
-  form?.addEventListener("submit", async (event) => {
+  editForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const message = document.getElementById("editMemberMessage");
     const button = document.getElementById("saveMemberBtn");
-    const payload = Object.fromEntries(new FormData(form).entries());
+    const payload = Object.fromEntries(new FormData(editForm).entries());
 
     message.textContent = "Saving changes...";
     button.disabled = true;
@@ -360,6 +539,38 @@ function bindMember360Events() {
       });
 
       editMode = false;
+      await loadMember360();
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+
+  assignOfficerForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = document.getElementById("assignOfficerMessage");
+    const button = document.getElementById("assignOfficerBtn");
+    const formData = new FormData(assignOfficerForm);
+    const payload = Object.fromEntries(formData.entries());
+
+    const selectedTerm = document
+      .getElementById("officerTermSelect")
+      ?.selectedOptions?.[0];
+
+    payload.termLabel = selectedTerm?.dataset.termLabel || "";
+    payload.termStart = selectedTerm?.dataset.termStart || "";
+    payload.termEnd = selectedTerm?.dataset.termEnd || "";
+
+    message.textContent = "Assigning officer role...";
+    button.disabled = true;
+
+    try {
+      await apiRequest(`/api/members/${currentMemberId}/officer-terms`, {
+        method: "POST",
+        body: payload
+      });
+
       await loadMember360();
     } catch (error) {
       message.textContent = error.message;
