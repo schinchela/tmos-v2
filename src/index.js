@@ -11,22 +11,12 @@ const CLUB_MIGRATIONS = [
   {
     version: "001_core",
     sql: [
-      `CREATE TABLE IF NOT EXISTS schema_migrations (
-        version TEXT PRIMARY KEY,
-        applied_at TEXT NOT NULL
-      )`,
-      `CREATE TABLE IF NOT EXISTS club_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        updated_at TEXT NOT NULL
-      )`,
-      `INSERT OR IGNORE INTO club_settings (key, value, updated_at)
-       VALUES ('officer_term_cycle', 'YEARLY', datetime('now'))`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('001_core', datetime('now'))`
+      `CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS club_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT NOT NULL)`,
+      `INSERT OR IGNORE INTO club_settings (key, value, updated_at) VALUES ('officer_term_cycle', 'YEARLY', datetime('now'))`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('001_core', datetime('now'))`
     ]
   },
-
   {
     version: "002_members",
     sql: [
@@ -55,11 +45,9 @@ const CLUB_MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_members_status ON members(membership_status)`,
       `CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)`,
       `CREATE INDEX IF NOT EXISTS idx_members_tm_id ON members(toastmasters_id)`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('002_members', datetime('now'))`
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('002_members', datetime('now'))`
     ]
   },
-
   {
     version: "003_officer_terms",
     sql: [
@@ -88,11 +76,9 @@ const CLUB_MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_member_officer_terms_member ON member_officer_terms(member_id)`,
       `CREATE INDEX IF NOT EXISTS idx_member_officer_terms_role ON member_officer_terms(officer_role)`,
       `CREATE INDEX IF NOT EXISTS idx_member_officer_terms_term ON member_officer_terms(term_id)`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('003_officer_terms', datetime('now'))`
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('003_officer_terms', datetime('now'))`
     ]
   },
-
   {
     version: "004_member_attendance",
     sql: [
@@ -108,11 +94,9 @@ const CLUB_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_attendance_member ON member_attendance(member_id)`,
       `CREATE INDEX IF NOT EXISTS idx_attendance_date ON member_attendance(meeting_date)`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('004_member_attendance', datetime('now'))`
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('004_member_attendance', datetime('now'))`
     ]
   },
-
   {
     version: "005_member_speeches",
     sql: [
@@ -134,11 +118,9 @@ const CLUB_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_speeches_member ON member_speeches(member_id)`,
       `CREATE INDEX IF NOT EXISTS idx_speeches_date ON member_speeches(speech_date)`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('005_member_speeches', datetime('now'))`
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('005_member_speeches', datetime('now'))`
     ]
   },
-
   {
     version: "006_member_awards",
     sql: [
@@ -154,11 +136,9 @@ const CLUB_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_awards_member ON member_awards(member_id)`,
       `CREATE INDEX IF NOT EXISTS idx_awards_date ON member_awards(award_date)`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('006_member_awards', datetime('now'))`
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('006_member_awards', datetime('now'))`
     ]
   },
-
   {
     version: "007_member_pathways",
     sql: [
@@ -181,11 +161,9 @@ const CLUB_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_pathways_member ON member_pathways(member_id)`,
       `CREATE INDEX IF NOT EXISTS idx_pathways_status ON member_pathways(status)`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('007_member_pathways', datetime('now'))`
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('007_member_pathways', datetime('now'))`
     ]
   },
-
   {
     version: "008_member_goals",
     sql: [
@@ -202,8 +180,7 @@ const CLUB_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_goals_member ON member_goals(member_id)`,
       `CREATE INDEX IF NOT EXISTS idx_goals_status ON member_goals(status)`,
-      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-       VALUES ('008_member_goals', datetime('now'))`
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('008_member_goals', datetime('now'))`
     ]
   }
 ];
@@ -211,10 +188,7 @@ const CLUB_MIGRATIONS = [
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      ...CORS_HEADERS
-    }
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS }
   });
 }
 
@@ -233,11 +207,7 @@ function addDays(days) {
 }
 
 function cleanSlug(value) {
-  return String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]/g, "")
-    .slice(0, 12);
+  return String(value || "").toLowerCase().trim().replace(/[^a-z0-9]/g, "").slice(0, 12);
 }
 
 function generateTempPassword() {
@@ -247,36 +217,18 @@ function generateTempPassword() {
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
   const hash = await crypto.subtle.digest("SHA-256", data);
-
-  return [...new Uint8Array(hash)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function passwordHash(password, salt) {
   return sha256(`${salt}:${password}`);
 }
 
-async function writeAudit(env, {
-  userId = "system",
-  action,
-  entityType,
-  entityId = null,
-  details = {}
-}) {
+async function writeAudit(env, { userId = "system", action, entityType, entityId = null, details = {} }) {
   await env.DB.prepare(`
-    INSERT INTO audit_logs (
-      id, user_id, action, entity_type, entity_id, details, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id("audit"),
-    userId,
-    action,
-    entityType,
-    entityId,
-    JSON.stringify(details),
-    now()
-  ).run();
+    INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, details, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(id("audit"), userId, action, entityType, entityId, JSON.stringify(details), now()).run();
 }
 
 async function cloudflareRequest(env, path, options = {}) {
@@ -287,7 +239,7 @@ async function cloudflareRequest(env, path, options = {}) {
   const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
     method: options.method || "GET",
     headers: {
-      "Authorization": `Bearer ${env.CF_API_TOKEN}`,
+      Authorization: `Bearer ${env.CF_API_TOKEN}`,
       "Content-Type": "application/json"
     },
     body: options.body ? JSON.stringify(options.body) : undefined
@@ -296,28 +248,21 @@ async function cloudflareRequest(env, path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok || !data?.success) {
-    const message =
+    throw new Error(
       data?.errors?.[0]?.message ||
       data?.messages?.[0]?.message ||
-      "Cloudflare API request failed";
-
-    throw new Error(message);
+      "Cloudflare API request failed"
+    );
   }
 
   return data.result;
 }
 
 async function createCloudflareD1Database(env, databaseName) {
-  const result = await cloudflareRequest(
-    env,
-    `/accounts/${env.CF_ACCOUNT_ID}/d1/database`,
-    {
-      method: "POST",
-      body: {
-        name: databaseName
-      }
-    }
-  );
+  const result = await cloudflareRequest(env, `/accounts/${env.CF_ACCOUNT_ID}/d1/database`, {
+    method: "POST",
+    body: { name: databaseName }
+  });
 
   return {
     id: result.uuid || result.id,
@@ -326,30 +271,33 @@ async function createCloudflareD1Database(env, databaseName) {
 }
 
 async function runCloudflareD1Query(env, databaseId, sql) {
-  return cloudflareRequest(
-    env,
-    `/accounts/${env.CF_ACCOUNT_ID}/d1/database/${databaseId}/query`,
-    {
-      method: "POST",
-      body: {
-        sql
-      }
-    }
-  );
+  return cloudflareRequest(env, `/accounts/${env.CF_ACCOUNT_ID}/d1/database/${databaseId}/query`, {
+    method: "POST",
+    body: { sql }
+  });
 }
 
 async function runClubMigrations(env, databaseId) {
+  const applied = [];
+
   for (const migration of CLUB_MIGRATIONS) {
     for (const statement of migration.sql) {
       await runCloudflareD1Query(env, databaseId, statement);
     }
+    applied.push(migration.version);
   }
+
+  return applied;
 }
 
 async function provisionClubDatabase(env, databaseName) {
   const d1Database = await createCloudflareD1Database(env, databaseName);
-  await runClubMigrations(env, d1Database.id);
-  return d1Database;
+  const migrationsApplied = await runClubMigrations(env, d1Database.id);
+
+  return {
+    ...d1Database,
+    migrationsApplied
+  };
 }
 
 function getBearerToken(request) {
@@ -363,16 +311,9 @@ async function createSession(env, userId) {
   const tokenHash = await sha256(rawToken);
 
   await env.DB.prepare(`
-    INSERT INTO user_sessions (
-      id, user_id, token_hash, expires_at, created_at
-    ) VALUES (?, ?, ?, ?, ?)
-  `).bind(
-    id("session"),
-    userId,
-    tokenHash,
-    addDays(SESSION_DAYS),
-    now()
-  ).run();
+    INSERT INTO user_sessions (id, user_id, token_hash, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(id("session"), userId, tokenHash, addDays(SESSION_DAYS), now()).run();
 
   return rawToken;
 }
@@ -384,9 +325,7 @@ async function getCurrentUser(request, env) {
   const tokenHash = await sha256(token);
 
   const session = await env.DB.prepare(`
-    SELECT user_id, expires_at
-    FROM user_sessions
-    WHERE token_hash = ?
+    SELECT user_id, expires_at FROM user_sessions WHERE token_hash = ?
   `).bind(tokenHash).first();
 
   if (!session) return null;
@@ -401,14 +340,7 @@ async function getCurrentUser(request, env) {
 
 async function requireAuth(request, env) {
   const user = await getCurrentUser(request, env);
-
-  if (!user) {
-    return {
-      ok: false,
-      response: json({ success: false, error: "Unauthorized" }, 401)
-    };
-  }
-
+  if (!user) return { ok: false, response: json({ success: false, error: "Unauthorized" }, 401) };
   return { ok: true, user };
 }
 
@@ -417,10 +349,7 @@ async function requireSuperAdmin(request, env) {
   if (!auth.ok) return auth;
 
   if (auth.user.role !== "SUPER_ADMIN") {
-    return {
-      ok: false,
-      response: json({ success: false, error: "Forbidden" }, 403)
-    };
+    return { ok: false, response: json({ success: false, error: "Forbidden" }, 403) };
   }
 
   return auth;
@@ -440,22 +369,15 @@ async function setupPassword(request, env) {
     return json({ success: false, error: "Email and password are required" }, 400);
   }
 
-  const user = await env.DB.prepare(`
-    SELECT id FROM users WHERE email = ?
-  `).bind(email).first();
-
-  if (!user) {
-    return json({ success: false, error: "User not found" }, 404);
-  }
+  const user = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(email).first();
+  if (!user) return json({ success: false, error: "User not found" }, 404);
 
   const salt = crypto.randomUUID();
   const hash = await passwordHash(password, salt);
 
-  await env.DB.prepare(`
-    UPDATE users
-    SET password_hash = ?
-    WHERE email = ?
-  `).bind(`${salt}:${hash}`, email).run();
+  await env.DB.prepare(`UPDATE users SET password_hash = ? WHERE email = ?`)
+    .bind(`${salt}:${hash}`, email)
+    .run();
 
   await writeAudit(env, {
     userId: user.id,
@@ -465,15 +387,11 @@ async function setupPassword(request, env) {
     details: { email }
   });
 
-  return json({
-    success: true,
-    data: { email, message: "Password set successfully" }
-  });
+  return json({ success: true, data: { email, message: "Password set successfully" } });
 }
 
 async function login(request, env) {
   const body = await request.json();
-
   const email = String(body.email || "").toLowerCase().trim();
   const password = String(body.password || "");
 
@@ -496,11 +414,9 @@ async function login(request, env) {
 
   const token = await createSession(env, user.id);
 
-  await env.DB.prepare(`
-    UPDATE users
-    SET last_login_at = ?
-    WHERE id = ?
-  `).bind(now(), user.id).run();
+  await env.DB.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`)
+    .bind(now(), user.id)
+    .run();
 
   await writeAudit(env, {
     userId: user.id,
@@ -531,21 +447,14 @@ async function logout(request, env) {
   if (!token) return json({ success: true });
 
   const tokenHash = await sha256(token);
-
-  await env.DB.prepare(`
-    DELETE FROM user_sessions
-    WHERE token_hash = ?
-  `).bind(tokenHash).run();
+  await env.DB.prepare(`DELETE FROM user_sessions WHERE token_hash = ?`).bind(tokenHash).run();
 
   return json({ success: true });
 }
 
 async function me(request, env) {
   const user = await getCurrentUser(request, env);
-
-  if (!user) {
-    return json({ success: false, error: "Unauthorized" }, 401);
-  }
+  if (!user) return json({ success: false, error: "Unauthorized" }, 401);
 
   return json({
     success: true,
@@ -564,35 +473,30 @@ async function getClubContext(request, env) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
 
-  const user = auth.user;
-
-  if (!user.club_id) {
+  if (!auth.user.club_id) {
     return json({ success: false, error: "No club assigned to this user" }, 400);
   }
 
   const club = await env.DB.prepare(`
-    SELECT
-      id, name, slug, database_name, status, city, country,
-      charter_number, timezone, meeting_day, meeting_time,
-      website, district, division, area, created_at
+    SELECT id, name, slug, database_name, status, city, country,
+           charter_number, timezone, meeting_day, meeting_time,
+           website, district, division, area, created_at
     FROM clubs
     WHERE id = ?
-  `).bind(user.club_id).first();
+  `).bind(auth.user.club_id).first();
 
-  if (!club) {
-    return json({ success: false, error: "Club not found" }, 404);
-  }
+  if (!club) return json({ success: false, error: "Club not found" }, 404);
 
   return json({
     success: true,
     data: {
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        role: user.role,
-        clubId: user.club_id
+        id: auth.user.id,
+        email: auth.user.email,
+        firstName: auth.user.first_name,
+        lastName: auth.user.last_name,
+        role: auth.user.role,
+        clubId: auth.user.club_id
       },
       club: {
         id: club.id,
@@ -622,13 +526,8 @@ async function generateUniqueDatabaseName(db, baseSlug) {
   let counter = 2;
 
   while (true) {
-    const existing = await db
-      .prepare("SELECT id FROM clubs WHERE database_name = ?")
-      .bind(candidate)
-      .first();
-
+    const existing = await db.prepare(`SELECT id FROM clubs WHERE database_name = ?`).bind(candidate).first();
     if (!existing) return candidate;
-
     candidate = `${base}${counter}`;
     counter++;
   }
@@ -648,22 +547,12 @@ async function createClub(request, env) {
   if (!name) return json({ success: false, error: "Club name is required" }, 400);
   if (!slug) return json({ success: false, error: "Club short code is required" }, 400);
 
-  const existingSlug = await env.DB.prepare(`
-    SELECT id FROM clubs WHERE slug = ?
-  `).bind(slug).first();
-
-  if (existingSlug) {
-    return json({ success: false, error: "Club short code already exists" }, 409);
-  }
+  const existingSlug = await env.DB.prepare(`SELECT id FROM clubs WHERE slug = ?`).bind(slug).first();
+  if (existingSlug) return json({ success: false, error: "Club short code already exists" }, 409);
 
   if (adminEmail) {
-    const existingAdmin = await env.DB.prepare(`
-      SELECT id FROM users WHERE email = ?
-    `).bind(adminEmail).first();
-
-    if (existingAdmin) {
-      return json({ success: false, error: "Club admin email already exists" }, 409);
-    }
+    const existingAdmin = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(adminEmail).first();
+    if (existingAdmin) return json({ success: false, error: "Club admin email already exists" }, 409);
   }
 
   const clubId = id("club");
@@ -685,10 +574,7 @@ async function createClub(request, env) {
       details: { name, slug, databaseName, error: error.message }
     });
 
-    return json({
-      success: false,
-      error: `Club provisioning failed: ${error.message}`
-    }, 500);
+    return json({ success: false, error: `Club provisioning failed: ${error.message}` }, 500);
   }
 
   let adminUserId = null;
@@ -698,46 +584,19 @@ async function createClub(request, env) {
 
   const statements = [
     env.DB.prepare(`
-      INSERT INTO clubs (
-        id, name, slug, database_name, status, city, country, created_at, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      clubId,
-      name,
-      slug,
-      databaseName,
-      "ACTIVE",
-      body.city || null,
-      body.country || null,
-      createdAt,
-      auth.user.id
-    ),
+      INSERT INTO clubs (id, name, slug, database_name, status, city, country, created_at, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(clubId, name, slug, databaseName, "ACTIVE", body.city || null, body.country || null, createdAt, auth.user.id),
 
     env.DB.prepare(`
-      INSERT INTO club_databases (
-        id, club_id, database_name, database_identifier, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(
-      clubDbId,
-      clubId,
-      databaseName,
-      d1Database.id,
-      "ACTIVE",
-      createdAt
-    ),
+      INSERT INTO club_databases (id, club_id, database_name, database_identifier, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(clubDbId, clubId, databaseName, d1Database.id, "ACTIVE", createdAt),
 
     env.DB.prepare(`
       INSERT INTO provisioning_jobs (
-        id,
-        club_id,
-        database_name,
-        status,
-        current_step,
-        started_at,
-        completed_at,
-        error_message,
-        created_by,
-        created_at
+        id, club_id, database_name, status, current_step,
+        started_at, completed_at, error_message, created_by, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       jobId,
@@ -767,18 +626,8 @@ async function createClub(request, env) {
     statements.push(
       env.DB.prepare(`
         INSERT INTO users (
-          id,
-          email,
-          password_hash,
-          first_name,
-          last_name,
-          role,
-          club_id,
-          status,
-          created_at,
-          phone,
-          invited_at,
-          created_by
+          id, email, password_hash, first_name, last_name, role,
+          club_id, status, created_at, phone, invited_at, created_by
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         adminUserId,
@@ -809,7 +658,7 @@ async function createClub(request, env) {
       slug,
       databaseName,
       databaseIdentifier: d1Database.id,
-      migrations: CLUB_MIGRATIONS.map((m) => m.version),
+      migrations: d1Database.migrationsApplied,
       provisioningJobId: jobId,
       status: "ACTIVE",
       adminEmail: adminEmail || null
@@ -822,11 +671,7 @@ async function createClub(request, env) {
       action: "CREATE_CLUB_ADMIN",
       entityType: "user",
       entityId: adminUserId,
-      details: {
-        email: adminEmail,
-        role: "CLUB_ADMIN",
-        clubId
-      }
+      details: { email: adminEmail, role: "CLUB_ADMIN", clubId }
     });
   }
 
@@ -840,22 +685,78 @@ async function createClub(request, env) {
       databaseIdentifier: d1Database.id,
       status: "ACTIVE",
       provisioningJobId: jobId,
-      migrationsApplied: CLUB_MIGRATIONS.map((m) => m.version),
+      migrationsApplied: d1Database.migrationsApplied,
       city: body.city || null,
       country: body.country || null,
       createdAt,
       clubAdmin: adminEmail
-        ? {
-            id: adminUserId,
-            email: adminEmail,
-            firstName,
-            lastName,
-            role: "CLUB_ADMIN",
-            temporaryPassword
-          }
+        ? { id: adminUserId, email: adminEmail, firstName, lastName, role: "CLUB_ADMIN", temporaryPassword }
         : null
     }
   }, 201);
+}
+
+async function migrateExistingClub(request, env, clubId) {
+  const auth = await requireSuperAdmin(request, env);
+  if (!auth.ok) return auth.response;
+
+  const club = await env.DB.prepare(`
+    SELECT c.id, c.name, c.slug, c.database_name, cd.database_identifier
+    FROM clubs c
+    LEFT JOIN club_databases cd ON cd.club_id = c.id
+    WHERE c.id = ?
+  `).bind(clubId).first();
+
+  if (!club) {
+    return json({ success: false, error: "Club not found" }, 404);
+  }
+
+  if (!club.database_identifier) {
+    return json({
+      success: false,
+      error: "Club has no database_identifier. Create or attach the D1 database first."
+    }, 400);
+  }
+
+  const applied = await runClubMigrations(env, club.database_identifier);
+
+  await env.DB.prepare(`
+    UPDATE provisioning_jobs
+    SET status = ?, current_step = ?, completed_at = ?, error_message = NULL
+    WHERE club_id = ?
+  `).bind("COMPLETED", "MIGRATIONS_APPLIED", now(), clubId).run();
+
+  await env.DB.prepare(`
+    UPDATE clubs SET status = 'ACTIVE' WHERE id = ?
+  `).bind(clubId).run();
+
+  await env.DB.prepare(`
+    UPDATE club_databases SET status = 'ACTIVE' WHERE club_id = ?
+  `).bind(clubId).run();
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "MIGRATE_EXISTING_CLUB_DATABASE",
+    entityType: "club",
+    entityId: clubId,
+    details: {
+      clubName: club.name,
+      databaseName: club.database_name,
+      databaseIdentifier: club.database_identifier,
+      migrationsApplied: applied
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      clubId,
+      clubName: club.name,
+      databaseName: club.database_name,
+      databaseIdentifier: club.database_identifier,
+      migrationsApplied: applied
+    }
+  });
 }
 
 async function listClubs(env) {
@@ -874,27 +775,16 @@ async function listProvisioningJobs(request, env) {
 
   const result = await env.DB.prepare(`
     SELECT
-      p.id,
-      p.club_id,
-      c.name AS club_name,
-      p.database_name,
-      p.status,
-      p.current_step,
-      p.started_at,
-      p.completed_at,
-      p.error_message,
-      p.created_by,
-      p.created_at
+      p.id, p.club_id, c.name AS club_name, p.database_name,
+      p.status, p.current_step, p.started_at, p.completed_at,
+      p.error_message, p.created_by, p.created_at
     FROM provisioning_jobs p
     LEFT JOIN clubs c ON c.id = p.club_id
     ORDER BY p.created_at DESC
     LIMIT 50
   `).all();
 
-  return json({
-    success: true,
-    data: result.results || []
-  });
+  return json({ success: true, data: result.results || [] });
 }
 
 async function getPlatformStats(env) {
@@ -905,9 +795,7 @@ async function getPlatformStats(env) {
   const auditEvents = await env.DB.prepare(`SELECT COUNT(*) AS count FROM audit_logs`).first();
 
   const pendingProvisioningJobs = await env.DB.prepare(`
-    SELECT COUNT(*) AS count
-    FROM provisioning_jobs
-    WHERE status IN ('PENDING', 'RUNNING')
+    SELECT COUNT(*) AS count FROM provisioning_jobs WHERE status IN ('PENDING', 'RUNNING')
   `).first();
 
   const latestClubs = await env.DB.prepare(`
@@ -971,27 +859,15 @@ async function listUsers(request, env) {
 
   const result = await env.DB.prepare(`
     SELECT
-      u.id,
-      u.email,
-      u.first_name,
-      u.last_name,
-      u.phone,
-      u.role,
-      u.club_id,
-      c.name AS club_name,
-      u.status,
-      u.last_login_at,
-      u.invited_at,
-      u.created_at
+      u.id, u.email, u.first_name, u.last_name, u.phone, u.role,
+      u.club_id, c.name AS club_name, u.status, u.last_login_at,
+      u.invited_at, u.created_at
     FROM users u
     LEFT JOIN clubs c ON c.id = u.club_id
     ORDER BY u.created_at DESC
   `).all();
 
-  return json({
-    success: true,
-    data: result.results || []
-  });
+  return json({ success: true, data: result.results || [] });
 }
 
 async function createUser(request, env) {
@@ -1012,10 +888,7 @@ async function createUser(request, env) {
   if (!role) return json({ success: false, error: "Role is required" }, 400);
 
   const existing = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(email).first();
-
-  if (existing) {
-    return json({ success: false, error: "User already exists" }, 409);
-  }
+  if (existing) return json({ success: false, error: "User already exists" }, 409);
 
   const userId = id("user");
   const salt = crypto.randomUUID();
@@ -1024,18 +897,8 @@ async function createUser(request, env) {
 
   await env.DB.prepare(`
     INSERT INTO users (
-      id,
-      email,
-      password_hash,
-      first_name,
-      last_name,
-      role,
-      club_id,
-      status,
-      created_at,
-      phone,
-      invited_at,
-      created_by
+      id, email, password_hash, first_name, last_name, role,
+      club_id, status, created_at, phone, invited_at, created_by
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     userId,
@@ -1084,33 +947,17 @@ async function completeProvisioning(request, env, jobId) {
   const completedAt = now();
 
   const job = await env.DB.prepare(`
-    SELECT id, club_id, database_name
-    FROM provisioning_jobs
-    WHERE id = ?
+    SELECT id, club_id, database_name FROM provisioning_jobs WHERE id = ?
   `).bind(jobId).first();
 
-  if (!job) {
-    return json({ success: false, error: "Provisioning job not found" }, 404);
-  }
+  if (!job) return json({ success: false, error: "Provisioning job not found" }, 404);
 
   await env.DB.batch([
     env.DB.prepare(`
-      UPDATE provisioning_jobs
-      SET status = ?, current_step = ?, completed_at = ?, error_message = NULL
-      WHERE id = ?
+      UPDATE provisioning_jobs SET status = ?, current_step = ?, completed_at = ?, error_message = NULL WHERE id = ?
     `).bind("COMPLETED", "COMPLETED", completedAt, jobId),
-
-    env.DB.prepare(`
-      UPDATE clubs
-      SET status = ?
-      WHERE id = ?
-    `).bind("ACTIVE", job.club_id),
-
-    env.DB.prepare(`
-      UPDATE club_databases
-      SET status = ?
-      WHERE club_id = ?
-    `).bind("ACTIVE", job.club_id)
+    env.DB.prepare(`UPDATE clubs SET status = ? WHERE id = ?`).bind("ACTIVE", job.club_id),
+    env.DB.prepare(`UPDATE club_databases SET status = ? WHERE club_id = ?`).bind("ACTIVE", job.club_id)
   ]);
 
   await writeAudit(env, {
@@ -1118,21 +965,12 @@ async function completeProvisioning(request, env, jobId) {
     action: "PROVISIONING_COMPLETED",
     entityType: "provisioning_job",
     entityId: jobId,
-    details: {
-      clubId: job.club_id,
-      databaseName: job.database_name
-    }
+    details: { clubId: job.club_id, databaseName: job.database_name }
   });
 
   return json({
     success: true,
-    data: {
-      id: jobId,
-      clubId: job.club_id,
-      databaseName: job.database_name,
-      status: "COMPLETED",
-      completedAt
-    }
+    data: { id: jobId, clubId: job.club_id, databaseName: job.database_name, status: "COMPLETED", completedAt }
   });
 }
 
@@ -1144,12 +982,7 @@ async function handleRequest(request, env) {
   }
 
   if (url.pathname === "/") {
-    return json({
-      success: true,
-      service: "TMOS Enterprise API",
-      version: "v2",
-      status: "online"
-    });
+    return json({ success: true, service: "TMOS Enterprise API", version: "v2", status: "online" });
   }
 
   if (url.pathname === "/health") {
@@ -1180,6 +1013,11 @@ async function handleRequest(request, env) {
   if (url.pathname === "/api/platform/users" && request.method === "GET") return listUsers(request, env);
   if (url.pathname === "/api/platform/users" && request.method === "POST") return createUser(request, env);
 
+  const migrateMatch = url.pathname.match(/^\/api\/platform\/clubs\/([^/]+)\/migrate$/);
+  if (migrateMatch && request.method === "POST") {
+    return migrateExistingClub(request, env, migrateMatch[1]);
+  }
+
   const completeMatch = url.pathname.match(/^\/api\/platform\/provisioning\/([^/]+)\/complete$/);
   if (completeMatch && request.method === "POST") {
     return completeProvisioning(request, env, completeMatch[1]);
@@ -1201,10 +1039,7 @@ export default {
         });
       } catch (_) {}
 
-      return json({
-        success: false,
-        error: error.message || "Internal server error"
-      }, 500);
+      return json({ success: false, error: error.message || "Internal server error" }, 500);
     }
   }
 };
