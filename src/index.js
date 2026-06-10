@@ -154,6 +154,39 @@ async function listClubs(env) {
   });
 }
 
+async function getPlatformStats(env) {
+  const totalClubs = await env.DB
+    .prepare("SELECT COUNT(*) AS count FROM clubs")
+    .first();
+
+  const activeClubs = await env.DB
+    .prepare("SELECT COUNT(*) AS count FROM clubs WHERE status = 'ACTIVE'")
+    .first();
+
+  const auditEvents = await env.DB
+    .prepare("SELECT COUNT(*) AS count FROM audit_logs")
+    .first();
+
+  const latestClubs = await env.DB
+    .prepare(`
+      SELECT id, name, slug, database_name, status, city, country, created_at
+      FROM clubs
+      ORDER BY created_at DESC
+      LIMIT 5
+    `)
+    .all();
+
+  return json({
+    success: true,
+    data: {
+      totalClubs: totalClubs?.count || 0,
+      activeClubs: activeClubs?.count || 0,
+      auditEvents: auditEvents?.count || 0,
+      latestClubs: latestClubs.results || []
+    }
+  });
+}
+
 async function handleRequest(request, env) {
   const url = new URL(request.url);
 
@@ -180,6 +213,10 @@ async function handleRequest(request, env) {
       runtime: "Cloudflare Worker",
       database: env.DB ? "connected" : "missing"
     });
+  }
+
+  if (url.pathname === "/api/platform/stats" && request.method === "GET") {
+    return getPlatformStats(env);
   }
 
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") {
