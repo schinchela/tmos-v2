@@ -43,6 +43,7 @@ function cleanSlug(value) {
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
   const hash = await crypto.subtle.digest("SHA-256", data);
+
   return [...new Uint8Array(hash)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
@@ -50,6 +51,152 @@ async function sha256(value) {
 
 async function passwordHash(password, salt) {
   return sha256(`${salt}:${password}`);
+}
+
+async function writeAudit(env, {
+  userId = "system",
+  action,
+  entityType,
+  entityId = null,
+  details = {}
+}) {
+  await env.DB.prepare(`
+    INSERT INTO audit_logs (
+      id, user_id, action, entity_type, entity_id, details, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id("audit"),
+    userId,
+    action,
+    entityType,
+    entityId,
+    JSON.stringify(details),
+    now()
+  ).run();
+}
+
+async function setupPassword(request, env) {
+  const body = await request.json();
+
+  if (!env.SETUP_SECRET || body.setupSecret !== env.SETUP_SECRET) {
+    return json({ success: false, error: "Invalid setup secret" }, 403);
+  }
+
+  const email = String(body.email || "").toLowerCase().trim();
+  const password = String(body.password || "");
+
+  if (!email || !password) {
+    return json({ success: false, error: "Email and password are required" }, 400);
+  }
+
+  if (password.length < 8) {
+    return json({ success: false, error: "Password must be at least 8 characters" }, 400);
+  }
+
+  const user = await env.DB.prepare(`
+    SELECT id, email FROM users WHERE email = ?
+  `).bind(email).first();
+
+  if (!user) {
+    return json({ success: false, error: "User not found" }, 404);
+  }
+
+  const salt = crypto.randomUUID();
+  const hash = await passwordHash(password, salt);
+  const storedPassword = `${salt}:${hash}`;
+
+  await env.DB.prepare(`
+    UPDATE users
+    SET password_hash = ?
+    WHERE email = ?
+  `).bind(storedPassword, email).run();
+
+  await writeAudit(env, {
+    userId: user.id,
+    action: "SET_PASSWORD",
+    entityType: "user",
+    entityId: user.id,
+    details: { email }
+  });
+
+  return json({
+    success: true,
+    data: {
+      email,
+      message: "Password set successfully"
+    }
+  });
+}
+
+async function setupSuperAdmin(request, env) {
+  const body = await request.json();
+
+  if (!env.SETUP_SECRET || body.setupSecret !== env.SETUP_SECRET) {
+    return json({ success: false, error: "Invalid setup secret" }, 403);
+  }
+
+  const email = String(body.email || "").toLowerCase().trim();
+  const password = String(body.password || "");
+  const firstName = String(body.firstName || "").trim();
+  const lastName = String(body.lastName || "").trim();
+
+  if (!email || !password) {
+    return json({ success: false, error: "Email and password are required" }, 400);
+  }
+
+  if (password.length < 8) {
+    return json({ success: false, error: "Password must be at least 8 characters" }, 400);
+  }
+
+  const existing = await env.DB.prepare(`
+    SELECT id FROM users WHERE email = ?
+  `).bind(email).first();
+
+  if (existing) {
+    return json({ success: false, error: "User already exists" }, 409);
+  }
+
+  const userId = id("user");
+  const salt = crypto.randomUUID();
+  const hash = await passwordHash(password, salt);
+  const storedPassword = `${salt}:${hash}`;
+  const createdAt = now();
+
+  await env.DB.prepare(`
+    INSERT INTO users (
+      id, email, password_hash, first_name, last_name, role, club_id, status, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    userId,
+    email,
+    storedPassword,
+    firstName || null,
+    lastName || null,
+    "SUPER_ADMIN",
+    null,
+    "ACTIVE",
+    createdAt
+  ).run();
+
+  await writeAudit(env, {
+    userId,
+    action: "SETUP_SUPERADMIN",
+    entityType: "user",
+    entityId: userId,
+    details: { email }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: userId,
+      email,
+      firstName,
+      lastName,
+      role: "SUPER_ADMIN",
+      createdAt
+    }
+  }, 201);
 }
 
 async function createSession(env, userId) {
@@ -124,99 +271,6 @@ async function requireSuperAdmin(request, env) {
   return { ok: true, user };
 }
 
-async function writeAudit(env, {
-  userId = "system",
-  action,
-  entityType,
-  entityId = null,
-  details = {}
-}) {
-  await env.DB.prepare(`
-    INSERT INTO audit_logs (
-      id, user_id, action, entity_type, entity_id, details, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id("audit"),
-    userId,
-    action,
-    entityType,
-    entityId,
-    JSON.stringify(details),
-    now()
-  ).run();
-}
-
-async function setupSuperAdmin(request, env) {
-  const body = await request.json();
-
-  if (!env.SETUP_SECRET || body.setupSecret !== env.SETUP_SECRET) {
-    return json({ success: false, error: "Invalid setup secret" }, 403);
-  }
-
-  const email = String(body.email || "").toLowerCase().trim();
-  const password = String(body.password || "");
-  const firstName = String(body.firstName || "").trim();
-  const lastName = String(body.lastName || "").trim();
-
-  if (!email || !password) {
-    return json({ success: false, error: "Email and password are required" }, 400);
-  }
-
-  if (password.length < 8) {
-    return json({ success: false, error: "Password must be at least 8 characters" }, 400);
-  }
-
-  const existing = await env.DB.prepare(`
-    SELECT id FROM users WHERE email = ?
-  `).bind(email).first();
-
-  if (existing) {
-    return json({ success: false, error: "User already exists" }, 409);
-  }
-
-  const userId = id("user");
-  const salt = crypto.randomUUID();
-  const hash = await passwordHash(password, salt);
-  const storedPassword = `${salt}:${hash}`;
-  const createdAt = now();
-
-  await env.DB.prepare(`
-    INSERT INTO users (
-      id, email, password_hash, first_name, last_name, role, club_id, status, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    userId,
-    email,
-    storedPassword,
-    firstName || null,
-    lastName || null,
-    "SUPER_ADMIN",
-    null,
-    "ACTIVE",
-    createdAt
-  ).run();
-
-  await writeAudit(env, {
-    userId,
-    action: "SETUP_SUPERADMIN",
-    entityType: "user",
-    entityId: userId,
-    details: { email }
-  });
-
-  return json({
-    success: true,
-    data: {
-      id: userId,
-      email,
-      firstName,
-      lastName,
-      role: "SUPER_ADMIN",
-      createdAt
-    }
-  }, 201);
-}
-
 async function login(request, env) {
   const body = await request.json();
 
@@ -233,7 +287,7 @@ async function login(request, env) {
     WHERE email = ? AND status = 'ACTIVE'
   `).bind(email).first();
 
-  if (!user || !user.password_hash) {
+  if (!user || !user.password_hash || user.password_hash === "TEMP_RESET_REQUIRED") {
     return json({ success: false, error: "Invalid email or password" }, 401);
   }
 
@@ -508,6 +562,10 @@ async function handleRequest(request, env) {
 
   if (url.pathname === "/api/setup/superadmin" && request.method === "POST") {
     return setupSuperAdmin(request, env);
+  }
+
+  if (url.pathname === "/api/setup/password" && request.method === "POST") {
+    return setupPassword(request, env);
   }
 
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
