@@ -318,10 +318,7 @@ async function getClubContext(request, env) {
   `).bind(user.club_id).first();
 
   if (!club) {
-    return json({
-      success: false,
-      error: "Club not found"
-    }, 404);
+    return json({ success: false, error: "Club not found" }, 404);
   }
 
   return json({
@@ -397,6 +394,7 @@ async function createClub(request, env) {
 
   const clubId = id("club");
   const clubDbId = id("clubdb");
+  const jobId = id("prov");
   const databaseName = await generateUniqueDatabaseName(env.DB, slug);
   const createdAt = now();
 
@@ -410,7 +408,7 @@ async function createClub(request, env) {
       name,
       slug,
       databaseName,
-      "ACTIVE",
+      "PROVISIONING",
       body.city || null,
       body.country || null,
       createdAt,
@@ -426,7 +424,33 @@ async function createClub(request, env) {
       clubId,
       databaseName,
       null,
+      "PENDING",
+      createdAt
+    ),
+
+    env.DB.prepare(`
+      INSERT INTO provisioning_jobs (
+        id,
+        club_id,
+        database_name,
+        status,
+        current_step,
+        started_at,
+        completed_at,
+        error_message,
+        created_by,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      jobId,
+      clubId,
+      databaseName,
+      "PENDING",
       "REGISTERED",
+      createdAt,
+      null,
+      null,
+      auth.user.id,
       createdAt
     )
   ]);
@@ -436,7 +460,13 @@ async function createClub(request, env) {
     action: "CREATE_CLUB",
     entityType: "club",
     entityId: clubId,
-    details: { name, slug, databaseName }
+    details: {
+      name,
+      slug,
+      databaseName,
+      provisioningJobId: jobId,
+      status: "PROVISIONING"
+    }
   });
 
   return json({
@@ -446,7 +476,8 @@ async function createClub(request, env) {
       name,
       slug,
       databaseName,
-      status: "ACTIVE",
+      status: "PROVISIONING",
+      provisioningJobId: jobId,
       city: body.city || null,
       country: body.country || null,
       createdAt
@@ -464,6 +495,35 @@ async function listClubs(env) {
   return json({ success: true, data: result.results || [] });
 }
 
+async function listProvisioningJobs(request, env) {
+  const auth = await requireSuperAdmin(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await env.DB.prepare(`
+    SELECT
+      p.id,
+      p.club_id,
+      c.name AS club_name,
+      p.database_name,
+      p.status,
+      p.current_step,
+      p.started_at,
+      p.completed_at,
+      p.error_message,
+      p.created_by,
+      p.created_at
+    FROM provisioning_jobs p
+    LEFT JOIN clubs c ON c.id = p.club_id
+    ORDER BY p.created_at DESC
+    LIMIT 50
+  `).all();
+
+  return json({
+    success: true,
+    data: result.results || []
+  });
+}
+
 async function getPlatformStats(env) {
   const totalClubs = await env.DB.prepare(`
     SELECT COUNT(*) AS count FROM clubs
@@ -471,6 +531,14 @@ async function getPlatformStats(env) {
 
   const activeClubs = await env.DB.prepare(`
     SELECT COUNT(*) AS count FROM clubs WHERE status = 'ACTIVE'
+  `).first();
+
+  const provisioningClubs = await env.DB.prepare(`
+    SELECT COUNT(*) AS count FROM clubs WHERE status = 'PROVISIONING'
+  `).first();
+
+  const pendingProvisioningJobs = await env.DB.prepare(`
+    SELECT COUNT(*) AS count FROM provisioning_jobs WHERE status IN ('PENDING', 'RUNNING')
   `).first();
 
   const users = await env.DB.prepare(`
@@ -493,6 +561,8 @@ async function getPlatformStats(env) {
     data: {
       totalClubs: totalClubs?.count || 0,
       activeClubs: activeClubs?.count || 0,
+      provisioningClubs: provisioningClubs?.count || 0,
+      pendingProvisioningJobs: pendingProvisioningJobs?.count || 0,
       users: users?.count || 0,
       auditEvents: auditEvents?.count || 0,
       latestClubs: latestClubs.results || []
@@ -670,7 +740,8 @@ async function handleRequest(request, env) {
       status: "healthy",
       runtime: "Cloudflare Worker",
       database: env.DB ? "connected" : "missing",
-      auth: "enabled"
+      auth: "enabled",
+      provisioning: "enabled"
     });
   }
 
@@ -704,6 +775,10 @@ async function handleRequest(request, env) {
 
   if (url.pathname === "/api/platform/clubs" && request.method === "POST") {
     return createClub(request, env);
+  }
+
+  if (url.pathname === "/api/platform/provisioning" && request.method === "GET") {
+    return listProvisioningJobs(request, env);
   }
 
   if (url.pathname === "/api/platform/audit" && request.method === "GET") {
