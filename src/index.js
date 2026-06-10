@@ -277,6 +277,64 @@ async function runCloudflareD1Query(env, databaseId, sql) {
   });
 }
 
+async function getClubDatabaseInfo(env, clubId) {
+  return env.DB.prepare(`
+    SELECT
+      database_name,
+      database_identifier
+    FROM club_databases
+    WHERE club_id = ?
+  `)
+  .bind(clubId)
+  .first();
+}
+
+async function executeClubQuery(
+  env,
+  clubId,
+  sql
+) {
+  const dbInfo = await getClubDatabaseInfo(
+    env,
+    clubId
+  );
+
+  if (!dbInfo) {
+    throw new Error(
+      "Club database not found"
+    );
+  }
+
+  return runCloudflareD1Query(
+    env,
+    dbInfo.database_identifier,
+    sql
+  );
+}
+
+async function executeClubStatement(
+  env,
+  clubId,
+  sql
+) {
+  const dbInfo = await getClubDatabaseInfo(
+    env,
+    clubId
+  );
+
+  if (!dbInfo) {
+    throw new Error(
+      "Club database not found"
+    );
+  }
+
+  return runCloudflareD1Query(
+    env,
+    dbInfo.database_identifier,
+    sql
+  );
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
