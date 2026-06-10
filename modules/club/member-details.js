@@ -2,6 +2,7 @@ import { apiRequest } from "../../assets/js/api.js";
 
 let currentMemberId = null;
 let member360Data = null;
+let editMode = false;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -15,6 +16,10 @@ function escapeHtml(value) {
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString();
+}
+
+function valueOrBlank(value) {
+  return escapeHtml(value || "");
 }
 
 function statusBadge(status) {
@@ -45,7 +50,125 @@ function emptyState(title, description) {
   `;
 }
 
+function renderEditForm(member) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Edit Profile</h3>
+        ${statusBadge(member.membership_status)}
+      </div>
+
+      <form class="enterprise-form" id="editMemberForm">
+        <div class="form-grid">
+          <label>
+            First Name
+            <input name="firstName" value="${valueOrBlank(member.first_name)}" required />
+          </label>
+
+          <label>
+            Last Name
+            <input name="lastName" value="${valueOrBlank(member.last_name)}" required />
+          </label>
+
+          <label>
+            Email
+            <input name="email" type="email" value="${valueOrBlank(member.email)}" />
+          </label>
+
+          <label>
+            Phone
+            <input name="phone" value="${valueOrBlank(member.phone)}" />
+          </label>
+
+          <label>
+            Toastmasters ID
+            <input name="toastmastersId" value="${valueOrBlank(member.toastmasters_id)}" />
+          </label>
+
+          <label>
+            Member Number
+            <input name="memberNumber" value="${valueOrBlank(member.member_number)}" />
+          </label>
+
+          <label>
+            Membership Type
+            <select name="membershipType">
+              <option value="Member" ${member.membership_type === "Member" ? "selected" : ""}>Member</option>
+              <option value="Dual Member" ${member.membership_type === "Dual Member" ? "selected" : ""}>Dual Member</option>
+              <option value="Reinstated Member" ${member.membership_type === "Reinstated Member" ? "selected" : ""}>Reinstated Member</option>
+              <option value="Charter Member" ${member.membership_type === "Charter Member" ? "selected" : ""}>Charter Member</option>
+              <option value="Honorary Member" ${member.membership_type === "Honorary Member" ? "selected" : ""}>Honorary Member</option>
+            </select>
+          </label>
+
+          <label>
+            Membership Status
+            <select name="membershipStatus">
+              <option value="ACTIVE" ${member.membership_status === "ACTIVE" ? "selected" : ""}>Active</option>
+              <option value="INACTIVE" ${member.membership_status === "INACTIVE" ? "selected" : ""}>Inactive</option>
+              <option value="PROSPECT" ${member.membership_status === "PROSPECT" ? "selected" : ""}>Prospect</option>
+              <option value="ON_HOLD" ${member.membership_status === "ON_HOLD" ? "selected" : ""}>On Hold</option>
+              <option value="TERMINATED" ${member.membership_status === "TERMINATED" ? "selected" : ""}>Terminated</option>
+            </select>
+          </label>
+
+          <label>
+            Join Date
+            <input name="joinDate" type="date" value="${valueOrBlank(member.join_date)}" />
+          </label>
+
+          <label>
+            Renewal Date
+            <input name="renewalDate" type="date" value="${valueOrBlank(member.renewal_date)}" />
+          </label>
+
+          <label>
+            Pathway
+            <input name="pathwayName" value="${valueOrBlank(member.pathway_name)}" />
+          </label>
+
+          <label>
+            Pathway Level
+            <select name="pathwayLevel">
+              ${[0,1,2,3,4,5].map((level) => `
+                <option value="${level}" ${Number(member.pathway_level || 0) === level ? "selected" : ""}>
+                  ${level === 0 ? "Not Started" : `Level ${level}`}
+                </option>
+              `).join("")}
+            </select>
+          </label>
+
+          <label>
+            Current Officer Role
+            <select name="activeOfficerRole">
+              <option value="" ${!member.active_officer_role ? "selected" : ""}>None</option>
+              <option value="PRESIDENT" ${member.active_officer_role === "PRESIDENT" ? "selected" : ""}>President</option>
+              <option value="VPE" ${member.active_officer_role === "VPE" ? "selected" : ""}>Vice President Education</option>
+              <option value="VPM" ${member.active_officer_role === "VPM" ? "selected" : ""}>Vice President Membership</option>
+              <option value="VPPR" ${member.active_officer_role === "VPPR" ? "selected" : ""}>Vice President Public Relations</option>
+              <option value="SECRETARY" ${member.active_officer_role === "SECRETARY" ? "selected" : ""}>Secretary</option>
+              <option value="TREASURER" ${member.active_officer_role === "TREASURER" ? "selected" : ""}>Treasurer</option>
+              <option value="SAA" ${member.active_officer_role === "SAA" ? "selected" : ""}>Sergeant at Arms</option>
+            </select>
+          </label>
+
+          <label>
+            Notes
+            <input name="notes" value="${valueOrBlank(member.notes)}" />
+          </label>
+        </div>
+
+        <button class="primary-btn" id="saveMemberBtn" type="submit">Save Changes</button>
+        <button class="ghost-btn" id="cancelEditBtn" type="button">Cancel</button>
+        <p class="form-message" id="editMemberMessage"></p>
+      </form>
+    </section>
+  `;
+}
+
 function renderProfile(member) {
+  if (editMode) return renderEditForm(member);
+
   return `
     <section class="module-panel">
       <div class="panel-header">
@@ -55,51 +178,18 @@ function renderProfile(member) {
 
       <div class="enterprise-form">
         <div class="form-grid">
-          <div class="card">
-            <span>Name</span>
-            <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong>
-          </div>
-
-          <div class="card">
-            <span>Toastmasters ID</span>
-            <strong>${escapeHtml(member.toastmasters_id || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Email</span>
-            <strong>${escapeHtml(member.email || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Phone</span>
-            <strong>${escapeHtml(member.phone || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Membership Type</span>
-            <strong>${escapeHtml(member.membership_type || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Join Date</span>
-            <strong>${escapeHtml(formatDate(member.join_date))}</strong>
-          </div>
-
-          <div class="card">
-            <span>Renewal Date</span>
-            <strong>${escapeHtml(formatDate(member.renewal_date))}</strong>
-          </div>
-
-          <div class="card">
-            <span>Current Officer Role</span>
-            <strong>${escapeHtml(member.active_officer_role || "-")}</strong>
-          </div>
+          <div class="card"><span>Name</span><strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong></div>
+          <div class="card"><span>Toastmasters ID</span><strong>${escapeHtml(member.toastmasters_id || "-")}</strong></div>
+          <div class="card"><span>Email</span><strong>${escapeHtml(member.email || "-")}</strong></div>
+          <div class="card"><span>Phone</span><strong>${escapeHtml(member.phone || "-")}</strong></div>
+          <div class="card"><span>Membership Type</span><strong>${escapeHtml(member.membership_type || "-")}</strong></div>
+          <div class="card"><span>Join Date</span><strong>${escapeHtml(formatDate(member.join_date))}</strong></div>
+          <div class="card"><span>Renewal Date</span><strong>${escapeHtml(formatDate(member.renewal_date))}</strong></div>
+          <div class="card"><span>Current Officer Role</span><strong>${escapeHtml(member.active_officer_role || "-")}</strong></div>
         </div>
 
         <div class="module-panel">
-          <div class="panel-header">
-            <h3>Notes</h3>
-          </div>
+          <div class="panel-header"><h3>Notes</h3></div>
           <div class="enterprise-form">
             <p>${escapeHtml(member.notes || "No notes added yet.")}</p>
           </div>
@@ -110,9 +200,7 @@ function renderProfile(member) {
 }
 
 function renderListTable(title, rows, columns, emptyDescription) {
-  if (!rows.length) {
-    return emptyState(title, emptyDescription);
-  }
+  if (!rows.length) return emptyState(title, emptyDescription);
 
   return `
     <section class="module-panel">
@@ -120,22 +208,16 @@ function renderListTable(title, rows, columns, emptyDescription) {
         <h3>${escapeHtml(title)}</h3>
         <span class="badge">${rows.length}</span>
       </div>
-
       <table class="table">
         <thead>
-          <tr>
-            ${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}
-          </tr>
+          <tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>
         </thead>
         <tbody>
           ${rows.map((row) => `
             <tr>
               ${columns.map((column) => {
                 const rawValue = row[column.key];
-                const value = column.format
-                  ? column.format(rawValue, row)
-                  : rawValue || "-";
-
+                const value = column.format ? column.format(rawValue, row) : rawValue || "-";
                 return `<td>${escapeHtml(value)}</td>`;
               }).join("")}
             </tr>
@@ -153,121 +235,74 @@ function renderMember360(data) {
     <section class="hero">
       <p class="eyebrow">Member 360</p>
       <h3>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</h3>
-      <p>
-        Complete member profile across membership, Pathways, speeches, attendance,
-        awards, goals and officer leadership history.
-      </p>
-      <button class="ghost-btn" data-route="club-members">Back to Members</button>
+      <p>Complete member profile across membership, Pathways, speeches, attendance, awards, goals and officer leadership history.</p>
+      <div class="top-actions">
+        <button class="ghost-btn" data-route="club-members">Back to Members</button>
+        <button class="primary-btn" id="editMemberBtn" type="button">Edit Member</button>
+      </div>
     </section>
 
     <section class="grid">
-      <article class="card">
-        <span>Membership Status</span>
-        <strong>${escapeHtml(member.membership_status || "ACTIVE")}</strong>
-      </article>
-
-      <article class="card">
-        <span>Pathway</span>
-        <strong>${escapeHtml(member.pathway_name || "Not Set")}</strong>
-      </article>
-
-      <article class="card">
-        <span>Pathway Level</span>
-        <strong>${escapeHtml(member.pathway_level ?? 0)}</strong>
-      </article>
-
-      <article class="card">
-        <span>Officer Role</span>
-        <strong>${escapeHtml(member.active_officer_role || "None")}</strong>
-      </article>
+      <article class="card"><span>Membership Status</span><strong>${escapeHtml(member.membership_status || "ACTIVE")}</strong></article>
+      <article class="card"><span>Pathway</span><strong>${escapeHtml(member.pathway_name || "Not Set")}</strong></article>
+      <article class="card"><span>Pathway Level</span><strong>${escapeHtml(member.pathway_level ?? 0)}</strong></article>
+      <article class="card"><span>Officer Role</span><strong>${escapeHtml(member.active_officer_role || "None")}</strong></article>
     </section>
 
     ${renderProfile(member)}
 
-    ${renderListTable(
-      "Pathways",
-      data.pathways || [],
-      [
-        { key: "pathway_name", label: "Pathway" },
-        { key: "current_level", label: "Level" },
-        { key: "status", label: "Status" },
-        { key: "started_at", label: "Started", format: formatDate },
-        { key: "completed_at", label: "Completed", format: formatDate }
-      ],
-      "No detailed pathway history yet. Future meetings and education tracking will populate this."
-    )}
+    ${renderListTable("Pathways", data.pathways || [], [
+      { key: "pathway_name", label: "Pathway" },
+      { key: "current_level", label: "Level" },
+      { key: "status", label: "Status" },
+      { key: "started_at", label: "Started", format: formatDate },
+      { key: "completed_at", label: "Completed", format: formatDate }
+    ], "No detailed pathway history yet.")}
 
-    ${renderListTable(
-      "Speeches",
-      data.speeches || [],
-      [
-        { key: "speech_title", label: "Title" },
-        { key: "pathway_name", label: "Pathway" },
-        { key: "project_name", label: "Project" },
-        { key: "level_number", label: "Level" },
-        { key: "speech_date", label: "Date", format: formatDate }
-      ],
-      "No speech history yet. Completed meeting agendas will feed this section."
-    )}
+    ${renderListTable("Speeches", data.speeches || [], [
+      { key: "speech_title", label: "Title" },
+      { key: "pathway_name", label: "Pathway" },
+      { key: "project_name", label: "Project" },
+      { key: "level_number", label: "Level" },
+      { key: "speech_date", label: "Date", format: formatDate }
+    ], "No speech history yet.")}
 
-    ${renderListTable(
-      "Attendance",
-      data.attendance || [],
-      [
-        { key: "meeting_date", label: "Date", format: formatDate },
-        { key: "attendance_status", label: "Status" },
-        { key: "role_taken", label: "Role" },
-        { key: "notes", label: "Notes" }
-      ],
-      "No attendance records yet. Meeting attendance will populate this automatically."
-    )}
+    ${renderListTable("Attendance", data.attendance || [], [
+      { key: "meeting_date", label: "Date", format: formatDate },
+      { key: "attendance_status", label: "Status" },
+      { key: "role_taken", label: "Role" },
+      { key: "notes", label: "Notes" }
+    ], "No attendance records yet.")}
 
-    ${renderListTable(
-      "Officer Terms",
-      data.officerTerms || [],
-      [
-        { key: "officer_role", label: "Role" },
-        { key: "term_label", label: "Term" },
-        { key: "term_start", label: "Start", format: formatDate },
-        { key: "term_end", label: "End", format: formatDate },
-        { key: "status", label: "Status" }
-      ],
-      "No officer history yet. Officer term assignment will populate this section."
-    )}
+    ${renderListTable("Officer Terms", data.officerTerms || [], [
+      { key: "officer_role", label: "Role" },
+      { key: "term_label", label: "Term" },
+      { key: "term_start", label: "Start", format: formatDate },
+      { key: "term_end", label: "End", format: formatDate },
+      { key: "status", label: "Status" }
+    ], "No officer history yet.")}
 
-    ${renderListTable(
-      "Awards",
-      data.awards || [],
-      [
-        { key: "award_type", label: "Type" },
-        { key: "award_name", label: "Award" },
-        { key: "award_date", label: "Date", format: formatDate },
-        { key: "source", label: "Source" }
-      ],
-      "No awards recorded yet."
-    )}
+    ${renderListTable("Awards", data.awards || [], [
+      { key: "award_type", label: "Type" },
+      { key: "award_name", label: "Award" },
+      { key: "award_date", label: "Date", format: formatDate },
+      { key: "source", label: "Source" }
+    ], "No awards recorded yet.")}
 
-    ${renderListTable(
-      "Goals",
-      data.goals || [],
-      [
-        { key: "goal_type", label: "Type" },
-        { key: "goal_title", label: "Goal" },
-        { key: "target_date", label: "Target", format: formatDate },
-        { key: "status", label: "Status" }
-      ],
-      "No member goals recorded yet."
-    )}
+    ${renderListTable("Goals", data.goals || [], [
+      { key: "goal_type", label: "Type" },
+      { key: "goal_title", label: "Goal" },
+      { key: "target_date", label: "Target", format: formatDate },
+      { key: "status", label: "Status" }
+    ], "No member goals recorded yet.")}
 
-    ${emptyState(
-      "Mentoring",
-      "Mentor and mentee relationships will be connected here after the mentoring module is added."
-    )}
+    ${emptyState("Mentoring", "Mentor and mentee relationships will be connected here after the mentoring module is added.")}
   `;
 }
 
 export function renderMemberDetails(memberId) {
   currentMemberId = memberId;
+  editMode = false;
 
   return `
     <section id="member360Content" class="content">
@@ -278,6 +313,59 @@ export function renderMemberDetails(memberId) {
       </section>
     </section>
   `;
+}
+
+async function loadMember360() {
+  const container = document.getElementById("member360Content");
+
+  const response = await apiRequest(`/api/members/${currentMemberId}`);
+  member360Data = response.data;
+
+  container.innerHTML = renderMember360(member360Data);
+  bindMember360Events();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function bindMember360Events() {
+  const editBtn = document.getElementById("editMemberBtn");
+  const cancelBtn = document.getElementById("cancelEditBtn");
+  const form = document.getElementById("editMemberForm");
+
+  editBtn?.addEventListener("click", () => {
+    editMode = true;
+    document.getElementById("member360Content").innerHTML = renderMember360(member360Data);
+    bindMember360Events();
+  });
+
+  cancelBtn?.addEventListener("click", () => {
+    editMode = false;
+    document.getElementById("member360Content").innerHTML = renderMember360(member360Data);
+    bindMember360Events();
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = document.getElementById("editMemberMessage");
+    const button = document.getElementById("saveMemberBtn");
+    const payload = Object.fromEntries(new FormData(form).entries());
+
+    message.textContent = "Saving changes...";
+    button.disabled = true;
+
+    try {
+      await apiRequest(`/api/members/${currentMemberId}`, {
+        method: "PUT",
+        body: payload
+      });
+
+      editMode = false;
+      await loadMember360();
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
 }
 
 export async function initMemberDetails() {
@@ -295,11 +383,7 @@ export async function initMemberDetails() {
   }
 
   try {
-    const response = await apiRequest(`/api/members/${currentMemberId}`);
-    member360Data = response.data;
-
-    container.innerHTML = renderMember360(member360Data);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    await loadMember360();
   } catch (error) {
     container.innerHTML = `
       <section class="module-panel">
