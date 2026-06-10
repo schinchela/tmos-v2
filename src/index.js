@@ -485,6 +485,149 @@ async function createClub(request, env) {
   }, 201);
 }
 
+async function completeProvisioning(request, env, jobId) {
+  const auth = await requireSuperAdmin(request, env);
+  if (!auth.ok) return auth.response;
+
+  const job = await env.DB.prepare(`
+    SELECT id, club_id, database_name, status
+    FROM provisioning_jobs
+    WHERE id = ?
+  `).bind(jobId).first();
+
+  if (!job) {
+    return json({ success: false, error: "Provisioning job not found" }, 404);
+  }
+
+  const completedAt = now();
+
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE provisioning_jobs
+      SET status = ?, current_step = ?, completed_at = ?, error_message = NULL
+      WHERE id = ?
+    `).bind(
+      "COMPLETED",
+      "COMPLETED",
+      completedAt,
+      jobId
+    ),
+
+    env.DB.prepare(`
+      UPDATE clubs
+      SET status = ?
+      WHERE id = ?
+    `).bind(
+      "ACTIVE",
+      job.club_id
+    ),
+
+    env.DB.prepare(`
+      UPDATE club_databases
+      SET status = ?
+      WHERE club_id = ?
+    `).bind(
+      "ACTIVE",
+      job.club_id
+    )
+  ]);
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "PROVISIONING_COMPLETED",
+    entityType: "provisioning_job",
+    entityId: jobId,
+    details: {
+      clubId: job.club_id,
+      databaseName: job.database_name
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: jobId,
+      clubId: job.club_id,
+      databaseName: job.database_name,
+      status: "COMPLETED",
+      clubStatus: "ACTIVE",
+      completedAt
+    }
+  });
+}
+
+async function failProvisioning(request, env, jobId) {
+  const auth = await requireSuperAdmin(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json().catch(() => ({}));
+  const errorMessage = String(body.errorMessage || "Provisioning failed").trim();
+
+  const job = await env.DB.prepare(`
+    SELECT id, club_id, database_name
+    FROM provisioning_jobs
+    WHERE id = ?
+  `).bind(jobId).first();
+
+  if (!job) {
+    return json({ success: false, error: "Provisioning job not found" }, 404);
+  }
+
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE provisioning_jobs
+      SET status = ?, current_step = ?, error_message = ?
+      WHERE id = ?
+    `).bind(
+      "FAILED",
+      "FAILED",
+      errorMessage,
+      jobId
+    ),
+
+    env.DB.prepare(`
+      UPDATE clubs
+      SET status = ?
+      WHERE id = ?
+    `).bind(
+      "PROVISIONING",
+      job.club_id
+    ),
+
+    env.DB.prepare(`
+      UPDATE club_databases
+      SET status = ?
+      WHERE club_id = ?
+    `).bind(
+      "FAILED",
+      job.club_id
+    )
+  ]);
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "PROVISIONING_FAILED",
+    entityType: "provisioning_job",
+    entityId: jobId,
+    details: {
+      clubId: job.club_id,
+      databaseName: job.database_name,
+      errorMessage
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: jobId,
+      clubId: job.club_id,
+      databaseName: job.database_name,
+      status: "FAILED",
+      errorMessage
+    }
+  });
+}
+
 async function listClubs(env) {
   const result = await env.DB.prepare(`
     SELECT id, name, slug, database_name, status, city, country, created_at
@@ -779,6 +922,16 @@ async function handleRequest(request, env) {
 
   if (url.pathname === "/api/platform/provisioning" && request.method === "GET") {
     return listProvisioningJobs(request, env);
+  }
+
+  const completeMatch = url.pathname.match(/^\/api\/platform\/provisioning\/([^/]+)\/complete$/);
+  if (completeMatch && request.method === "POST") {
+    return completeProvisioning(request, env, completeMatch[1]);
+  }
+
+  const failMatch = url.pathname.match(/^\/api\/platform\/provisioning\/([^/]+)\/fail$/);
+  if (failMatch && request.method === "POST") {
+    return failProvisioning(request, env, failMatch[1]);
   }
 
   if (url.pathname === "/api/platform/audit" && request.method === "GET") {
