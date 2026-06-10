@@ -7,13 +7,12 @@ const CORS_HEADERS = {
 
 const SESSION_DAYS = 7;
 
-function json(data, status = 200, extraHeaders = {}) {
+function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       "Content-Type": "application/json",
-      ...CORS_HEADERS,
-      ...extraHeaders
+      ...CORS_HEADERS
     }
   });
 }
@@ -43,7 +42,6 @@ function cleanSlug(value) {
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
   const hash = await crypto.subtle.digest("SHA-256", data);
-
   return [...new Uint8Array(hash)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
@@ -75,153 +73,29 @@ async function writeAudit(env, {
   ).run();
 }
 
-async function setupPassword(request, env) {
-  const body = await request.json();
-
-  if (!env.SETUP_SECRET || body.setupSecret !== env.SETUP_SECRET) {
-    return json({ success: false, error: "Invalid setup secret" }, 403);
-  }
-
-  const email = String(body.email || "").toLowerCase().trim();
-  const password = String(body.password || "");
-
-  if (!email || !password) {
-    return json({ success: false, error: "Email and password are required" }, 400);
-  }
-
-  if (password.length < 8) {
-    return json({ success: false, error: "Password must be at least 8 characters" }, 400);
-  }
-
-  const user = await env.DB.prepare(`
-    SELECT id, email FROM users WHERE email = ?
-  `).bind(email).first();
-
-  if (!user) {
-    return json({ success: false, error: "User not found" }, 404);
-  }
-
-  const salt = crypto.randomUUID();
-  const hash = await passwordHash(password, salt);
-  const storedPassword = `${salt}:${hash}`;
-
-  await env.DB.prepare(`
-    UPDATE users
-    SET password_hash = ?
-    WHERE email = ?
-  `).bind(storedPassword, email).run();
-
-  await writeAudit(env, {
-    userId: user.id,
-    action: "SET_PASSWORD",
-    entityType: "user",
-    entityId: user.id,
-    details: { email }
-  });
-
-  return json({
-    success: true,
-    data: {
-      email,
-      message: "Password set successfully"
-    }
-  });
-}
-
-async function setupSuperAdmin(request, env) {
-  const body = await request.json();
-
-  if (!env.SETUP_SECRET || body.setupSecret !== env.SETUP_SECRET) {
-    return json({ success: false, error: "Invalid setup secret" }, 403);
-  }
-
-  const email = String(body.email || "").toLowerCase().trim();
-  const password = String(body.password || "");
-  const firstName = String(body.firstName || "").trim();
-  const lastName = String(body.lastName || "").trim();
-
-  if (!email || !password) {
-    return json({ success: false, error: "Email and password are required" }, 400);
-  }
-
-  if (password.length < 8) {
-    return json({ success: false, error: "Password must be at least 8 characters" }, 400);
-  }
-
-  const existing = await env.DB.prepare(`
-    SELECT id FROM users WHERE email = ?
-  `).bind(email).first();
-
-  if (existing) {
-    return json({ success: false, error: "User already exists" }, 409);
-  }
-
-  const userId = id("user");
-  const salt = crypto.randomUUID();
-  const hash = await passwordHash(password, salt);
-  const storedPassword = `${salt}:${hash}`;
-  const createdAt = now();
-
-  await env.DB.prepare(`
-    INSERT INTO users (
-      id, email, password_hash, first_name, last_name, role, club_id, status, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    userId,
-    email,
-    storedPassword,
-    firstName || null,
-    lastName || null,
-    "SUPER_ADMIN",
-    null,
-    "ACTIVE",
-    createdAt
-  ).run();
-
-  await writeAudit(env, {
-    userId,
-    action: "SETUP_SUPERADMIN",
-    entityType: "user",
-    entityId: userId,
-    details: { email }
-  });
-
-  return json({
-    success: true,
-    data: {
-      id: userId,
-      email,
-      firstName,
-      lastName,
-      role: "SUPER_ADMIN",
-      createdAt
-    }
-  }, 201);
+function getBearerToken(request) {
+  const auth = request.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) return null;
+  return auth.slice(7);
 }
 
 async function createSession(env, userId) {
   const rawToken = crypto.randomUUID() + "." + crypto.randomUUID();
   const tokenHash = await sha256(rawToken);
-  const sessionId = id("session");
-  const createdAt = now();
-  const expiresAt = addDays(SESSION_DAYS);
 
   await env.DB.prepare(`
     INSERT INTO user_sessions (
       id, user_id, token_hash, expires_at, created_at
     ) VALUES (?, ?, ?, ?, ?)
-  `).bind(sessionId, userId, tokenHash, expiresAt, createdAt).run();
+  `).bind(
+    id("session"),
+    userId,
+    tokenHash,
+    addDays(SESSION_DAYS),
+    now()
+  ).run();
 
-  return {
-    token: rawToken,
-    expiresAt
-  };
-}
-
-function getBearerToken(request) {
-  const auth = request.headers.get("Authorization") || "";
-  if (!auth.startsWith("Bearer ")) return null;
-  return auth.slice(7);
+  return rawToken;
 }
 
 async function getCurrentUser(request, env) {
@@ -237,18 +111,13 @@ async function getCurrentUser(request, env) {
   `).bind(tokenHash).first();
 
   if (!session) return null;
+  if (new Date(session.expires_at) < new Date()) return null;
 
-  if (new Date(session.expires_at) < new Date()) {
-    return null;
-  }
-
-  const user = await env.DB.prepare(`
+  return env.DB.prepare(`
     SELECT id, email, first_name, last_name, role, club_id, status, created_at
     FROM users
     WHERE id = ? AND status = 'ACTIVE'
   `).bind(session.user_id).first();
-
-  return user || null;
 }
 
 async function requireSuperAdmin(request, env) {
@@ -271,8 +140,12 @@ async function requireSuperAdmin(request, env) {
   return { ok: true, user };
 }
 
-async function login(request, env) {
+async function setupPassword(request, env) {
   const body = await request.json();
+
+  if (!env.SETUP_SECRET || body.setupSecret !== env.SETUP_SECRET) {
+    return json({ success: false, error: "Invalid setup secret" }, 403);
+  }
 
   const email = String(body.email || "").toLowerCase().trim();
   const password = String(body.password || "");
@@ -280,6 +153,43 @@ async function login(request, env) {
   if (!email || !password) {
     return json({ success: false, error: "Email and password are required" }, 400);
   }
+
+  const user = await env.DB.prepare(`
+    SELECT id FROM users WHERE email = ?
+  `).bind(email).first();
+
+  if (!user) {
+    return json({ success: false, error: "User not found" }, 404);
+  }
+
+  const salt = crypto.randomUUID();
+  const hash = await passwordHash(password, salt);
+
+  await env.DB.prepare(`
+    UPDATE users
+    SET password_hash = ?
+    WHERE email = ?
+  `).bind(`${salt}:${hash}`, email).run();
+
+  await writeAudit(env, {
+    userId: user.id,
+    action: "SET_PASSWORD",
+    entityType: "user",
+    entityId: user.id,
+    details: { email }
+  });
+
+  return json({
+    success: true,
+    data: { email, message: "Password set successfully" }
+  });
+}
+
+async function login(request, env) {
+  const body = await request.json();
+
+  const email = String(body.email || "").toLowerCase().trim();
+  const password = String(body.password || "");
 
   const user = await env.DB.prepare(`
     SELECT id, email, password_hash, first_name, last_name, role, club_id, status
@@ -298,7 +208,13 @@ async function login(request, env) {
     return json({ success: false, error: "Invalid email or password" }, 401);
   }
 
-  const session = await createSession(env, user.id);
+  const token = await createSession(env, user.id);
+
+  await env.DB.prepare(`
+    UPDATE users
+    SET last_login_at = ?
+    WHERE id = ?
+  `).bind(now(), user.id).run();
 
   await writeAudit(env, {
     userId: user.id,
@@ -311,8 +227,7 @@ async function login(request, env) {
   return json({
     success: true,
     data: {
-      token: session.token,
-      expiresAt: session.expiresAt,
+      token,
       user: {
         id: user.id,
         email: user.email,
@@ -386,18 +301,12 @@ async function createClub(request, env) {
   const name = String(body.clubName || "").trim();
   const slug = cleanSlug(body.clubCode || body.clubName);
 
-  if (!name) {
-    return json({ success: false, error: "Club name is required" }, 400);
-  }
+  if (!name) return json({ success: false, error: "Club name is required" }, 400);
+  if (!slug) return json({ success: false, error: "Club short code is required" }, 400);
 
-  if (!slug) {
-    return json({ success: false, error: "Club short code is required" }, 400);
-  }
-
-  const existingSlug = await env.DB
-    .prepare("SELECT id FROM clubs WHERE slug = ?")
-    .bind(slug)
-    .first();
+  const existingSlug = await env.DB.prepare(`
+    SELECT id FROM clubs WHERE slug = ?
+  `).bind(slug).first();
 
   if (existingSlug) {
     return json({ success: false, error: "Club short code already exists" }, 409);
@@ -405,8 +314,8 @@ async function createClub(request, env) {
 
   const clubId = id("club");
   const clubDbId = id("clubdb");
-  const createdAt = now();
   const databaseName = await generateUniqueDatabaseName(env.DB, slug);
+  const createdAt = now();
 
   await env.DB.batch([
     env.DB.prepare(`
@@ -463,47 +372,45 @@ async function createClub(request, env) {
 }
 
 async function listClubs(env) {
-  const result = await env.DB
-    .prepare(`
-      SELECT id, name, slug, database_name, status, city, country, created_at
-      FROM clubs
-      ORDER BY created_at DESC
-    `)
-    .all();
+  const result = await env.DB.prepare(`
+    SELECT id, name, slug, database_name, status, city, country, created_at
+    FROM clubs
+    ORDER BY created_at DESC
+  `).all();
 
-  return json({
-    success: true,
-    data: result.results || []
-  });
+  return json({ success: true, data: result.results || [] });
 }
 
 async function getPlatformStats(env) {
-  const totalClubs = await env.DB
-    .prepare("SELECT COUNT(*) AS count FROM clubs")
-    .first();
+  const totalClubs = await env.DB.prepare(`
+    SELECT COUNT(*) AS count FROM clubs
+  `).first();
 
-  const activeClubs = await env.DB
-    .prepare("SELECT COUNT(*) AS count FROM clubs WHERE status = 'ACTIVE'")
-    .first();
+  const activeClubs = await env.DB.prepare(`
+    SELECT COUNT(*) AS count FROM clubs WHERE status = 'ACTIVE'
+  `).first();
 
-  const auditEvents = await env.DB
-    .prepare("SELECT COUNT(*) AS count FROM audit_logs")
-    .first();
+  const users = await env.DB.prepare(`
+    SELECT COUNT(*) AS count FROM users
+  `).first();
 
-  const latestClubs = await env.DB
-    .prepare(`
-      SELECT id, name, slug, database_name, status, city, country, created_at
-      FROM clubs
-      ORDER BY created_at DESC
-      LIMIT 5
-    `)
-    .all();
+  const auditEvents = await env.DB.prepare(`
+    SELECT COUNT(*) AS count FROM audit_logs
+  `).first();
+
+  const latestClubs = await env.DB.prepare(`
+    SELECT id, name, slug, database_name, status, city, country, created_at
+    FROM clubs
+    ORDER BY created_at DESC
+    LIMIT 5
+  `).all();
 
   return json({
     success: true,
     data: {
       totalClubs: totalClubs?.count || 0,
       activeClubs: activeClubs?.count || 0,
+      users: users?.count || 0,
       auditEvents: auditEvents?.count || 0,
       latestClubs: latestClubs.results || []
     }
@@ -512,18 +419,58 @@ async function getPlatformStats(env) {
 
 async function listAuditLogs(request, env) {
   const url = new URL(request.url);
-  const limitParam = Number(url.searchParams.get("limit") || 25);
-  const limit = Math.min(Math.max(limitParam, 1), 100);
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 25), 1), 100);
 
-  const result = await env.DB
-    .prepare(`
-      SELECT id, user_id, action, entity_type, entity_id, details, created_at
-      FROM audit_logs
-      ORDER BY created_at DESC
-      LIMIT ?
-    `)
-    .bind(limit)
-    .all();
+  const result = await env.DB.prepare(`
+    SELECT id, user_id, action, entity_type, entity_id, details, created_at
+    FROM audit_logs
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).bind(limit).all();
+
+  return json({ success: true, data: result.results || [] });
+}
+
+async function listRoles() {
+  return json({
+    success: true,
+    data: [
+      { code: "SUPER_ADMIN", name: "Super Administrator", scope: "PLATFORM" },
+      { code: "PLATFORM_ADMIN", name: "Platform Administrator", scope: "PLATFORM" },
+      { code: "SUPPORT_ADMIN", name: "Support Administrator", scope: "PLATFORM" },
+      { code: "CLUB_ADMIN", name: "Club Administrator", scope: "CLUB" },
+      { code: "PRESIDENT", name: "President", scope: "CLUB" },
+      { code: "VPE", name: "Vice President Education", scope: "CLUB" },
+      { code: "VPM", name: "Vice President Membership", scope: "CLUB" },
+      { code: "SECRETARY", name: "Secretary", scope: "CLUB" },
+      { code: "TREASURER", name: "Treasurer", scope: "CLUB" },
+      { code: "MEMBER", name: "Member", scope: "CLUB" }
+    ]
+  });
+}
+
+async function listUsers(request, env) {
+  const auth = await requireSuperAdmin(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await env.DB.prepare(`
+    SELECT
+      u.id,
+      u.email,
+      u.first_name,
+      u.last_name,
+      u.phone,
+      u.role,
+      u.club_id,
+      c.name AS club_name,
+      u.status,
+      u.last_login_at,
+      u.invited_at,
+      u.created_at
+    FROM users u
+    LEFT JOIN clubs c ON c.id = u.club_id
+    ORDER BY u.created_at DESC
+  `).all();
 
   return json({
     success: true,
@@ -531,14 +478,96 @@ async function listAuditLogs(request, env) {
   });
 }
 
+async function createUser(request, env) {
+  const auth = await requireSuperAdmin(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const email = String(body.email || "").toLowerCase().trim();
+  const firstName = String(body.firstName || "").trim();
+  const lastName = String(body.lastName || "").trim();
+  const phone = String(body.phone || "").trim();
+  const role = String(body.role || "").trim();
+  const clubId = body.clubId || null;
+  const password = String(body.password || "TempPass12345");
+
+  if (!email) return json({ success: false, error: "Email is required" }, 400);
+  if (!role) return json({ success: false, error: "Role is required" }, 400);
+
+  const existing = await env.DB.prepare(`
+    SELECT id FROM users WHERE email = ?
+  `).bind(email).first();
+
+  if (existing) {
+    return json({ success: false, error: "User already exists" }, 409);
+  }
+
+  const userId = id("user");
+  const salt = crypto.randomUUID();
+  const hash = await passwordHash(password, salt);
+  const createdAt = now();
+
+  await env.DB.prepare(`
+    INSERT INTO users (
+      id,
+      email,
+      password_hash,
+      first_name,
+      last_name,
+      role,
+      club_id,
+      status,
+      created_at,
+      phone,
+      invited_at,
+      created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    userId,
+    email,
+    `${salt}:${hash}`,
+    firstName || null,
+    lastName || null,
+    role,
+    clubId,
+    "ACTIVE",
+    createdAt,
+    phone || null,
+    createdAt,
+    auth.user.id
+  ).run();
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "CREATE_USER",
+    entityType: "user",
+    entityId: userId,
+    details: { email, role, clubId }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: userId,
+      email,
+      firstName,
+      lastName,
+      phone,
+      role,
+      clubId,
+      status: "ACTIVE",
+      temporaryPassword: password,
+      createdAt
+    }
+  }, 201);
+}
+
 async function handleRequest(request, env) {
   const url = new URL(request.url);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: CORS_HEADERS
-    });
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
   if (url.pathname === "/") {
@@ -558,10 +587,6 @@ async function handleRequest(request, env) {
       database: env.DB ? "connected" : "missing",
       auth: "enabled"
     });
-  }
-
-  if (url.pathname === "/api/setup/superadmin" && request.method === "POST") {
-    return setupSuperAdmin(request, env);
   }
 
   if (url.pathname === "/api/setup/password" && request.method === "POST") {
@@ -596,10 +621,19 @@ async function handleRequest(request, env) {
     return listAuditLogs(request, env);
   }
 
-  return json({
-    success: false,
-    error: "Route not found"
-  }, 404);
+  if (url.pathname === "/api/platform/roles" && request.method === "GET") {
+    return listRoles();
+  }
+
+  if (url.pathname === "/api/platform/users" && request.method === "GET") {
+    return listUsers(request, env);
+  }
+
+  if (url.pathname === "/api/platform/users" && request.method === "POST") {
+    return createUser(request, env);
+  }
+
+  return json({ success: false, error: "Route not found" }, 404);
 }
 
 export default {
