@@ -31,6 +31,11 @@ import {
 } from "../../modules/club/members.js";
 
 import {
+  renderMemberDetails,
+  initMemberDetails
+} from "../../modules/club/member-details.js";
+
+import {
   renderClubMeetings,
   initClubMeetings
 } from "../../modules/club/meetings.js";
@@ -91,6 +96,11 @@ const routes = {
     title: "Members",
     render: renderClubMembers,
     init: initClubMembers
+  },
+  "club-member-details": {
+  title: "Member 360",
+  render: () => renderMemberDetails(window.TMOS_SELECTED_MEMBER_ID),
+  init: initMemberDetails
   },
   "club-meetings": {
     title: "Meetings",
