@@ -616,318 +616,66 @@ async function getMemberDetails(request, env, memberId) {
     }
   });
 }
-import { apiRequest } from "../../assets/js/api.js";
 
-let currentMemberId = null;
-let member360Data = null;
+async function updateMember(request, env, memberId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleDateString();
-}
-
-function statusBadge(status) {
-  const value = String(status || "ACTIVE").toUpperCase();
-
-  if (["INACTIVE", "SUSPENDED", "TERMINATED"].includes(value)) {
-    return `<span class="badge danger">${escapeHtml(value)}</span>`;
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
   }
 
-  if (["PROSPECT", "ON_HOLD"].includes(value)) {
-    return `<span class="badge warning">${escapeHtml(value)}</span>`;
+  const body = await request.json();
+
+  const firstName = String(body.firstName || "").trim();
+  const lastName = String(body.lastName || "").trim();
+
+  if (!firstName) {
+    return json({ success: false, error: "First name is required" }, 400);
   }
 
-  return `<span class="badge">${escapeHtml(value)}</span>`;
-}
-
-function emptyState(title, description) {
-  return `
-    <section class="module-panel">
-      <div class="panel-header">
-        <h3>${escapeHtml(title)}</h3>
-        <span class="badge warning">Pending</span>
-      </div>
-      <div class="enterprise-form">
-        <p>${escapeHtml(description)}</p>
-      </div>
-    </section>
-  `;
-}
-
-function renderProfile(member) {
-  return `
-    <section class="module-panel">
-      <div class="panel-header">
-        <h3>Profile</h3>
-        ${statusBadge(member.membership_status)}
-      </div>
-
-      <div class="enterprise-form">
-        <div class="form-grid">
-          <div class="card">
-            <span>Name</span>
-            <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong>
-          </div>
-
-          <div class="card">
-            <span>Toastmasters ID</span>
-            <strong>${escapeHtml(member.toastmasters_id || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Email</span>
-            <strong>${escapeHtml(member.email || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Phone</span>
-            <strong>${escapeHtml(member.phone || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Membership Type</span>
-            <strong>${escapeHtml(member.membership_type || "-")}</strong>
-          </div>
-
-          <div class="card">
-            <span>Join Date</span>
-            <strong>${escapeHtml(formatDate(member.join_date))}</strong>
-          </div>
-
-          <div class="card">
-            <span>Renewal Date</span>
-            <strong>${escapeHtml(formatDate(member.renewal_date))}</strong>
-          </div>
-
-          <div class="card">
-            <span>Current Officer Role</span>
-            <strong>${escapeHtml(member.active_officer_role || "-")}</strong>
-          </div>
-        </div>
-
-        <div class="module-panel">
-          <div class="panel-header">
-            <h3>Notes</h3>
-          </div>
-          <div class="enterprise-form">
-            <p>${escapeHtml(member.notes || "No notes added yet.")}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-function renderListTable(title, rows, columns, emptyDescription) {
-  if (!rows.length) {
-    return emptyState(title, emptyDescription);
+  if (!lastName) {
+    return json({ success: false, error: "Last name is required" }, 400);
   }
 
-  return `
-    <section class="module-panel">
-      <div class="panel-header">
-        <h3>${escapeHtml(title)}</h3>
-        <span class="badge">${rows.length}</span>
-      </div>
+  const updatedAt = now();
+  const displayName = `${firstName} ${lastName}`.trim();
 
-      <table class="table">
-        <thead>
-          <tr>
-            ${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((row) => `
-            <tr>
-              ${columns.map((column) => {
-                const rawValue = row[column.key];
-                const value = column.format
-                  ? column.format(rawValue, row)
-                  : rawValue || "-";
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE members
+      SET
+        member_number = ${sqlValue(body.memberNumber)},
+        toastmasters_id = ${sqlValue(body.toastmastersId)},
+        first_name = ${sqlValue(firstName)},
+        last_name = ${sqlValue(lastName)},
+        display_name = ${sqlValue(displayName)},
+        email = ${sqlValue(body.email)},
+        phone = ${sqlValue(body.phone)},
+        membership_type = ${sqlValue(body.membershipType)},
+        membership_status = ${sqlValue(body.membershipStatus)},
+        join_date = ${sqlValue(body.joinDate)},
+        renewal_date = ${sqlValue(body.renewalDate)},
+        pathway_name = ${sqlValue(body.pathwayName)},
+        pathway_level = ${Number(body.pathwayLevel || 0)},
+        active_officer_role = ${sqlValue(body.activeOfficerRole)},
+        notes = ${sqlValue(body.notes)},
+        updated_at = ${sqlValue(updatedAt)}
+      WHERE id = ${sqlValue(memberId)}
+    `
+  );
 
-                return `<td>${escapeHtml(value)}</td>`;
-              }).join("")}
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </section>
-  `;
+  return json({
+    success: true,
+    data: {
+      id: memberId,
+      updatedAt
+    }
+  });
 }
 
-function renderMember360(data) {
-  const member = data.member;
-
-  return `
-    <section class="hero">
-      <p class="eyebrow">Member 360</p>
-      <h3>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</h3>
-      <p>
-        Complete member profile across membership, Pathways, speeches, attendance,
-        awards, goals and officer leadership history.
-      </p>
-      <button class="ghost-btn" data-route="club-members">Back to Members</button>
-    </section>
-
-    <section class="grid">
-      <article class="card">
-        <span>Membership Status</span>
-        <strong>${escapeHtml(member.membership_status || "ACTIVE")}</strong>
-      </article>
-
-      <article class="card">
-        <span>Pathway</span>
-        <strong>${escapeHtml(member.pathway_name || "Not Set")}</strong>
-      </article>
-
-      <article class="card">
-        <span>Pathway Level</span>
-        <strong>${escapeHtml(member.pathway_level ?? 0)}</strong>
-      </article>
-
-      <article class="card">
-        <span>Officer Role</span>
-        <strong>${escapeHtml(member.active_officer_role || "None")}</strong>
-      </article>
-    </section>
-
-    ${renderProfile(member)}
-
-    ${renderListTable(
-      "Pathways",
-      data.pathways || [],
-      [
-        { key: "pathway_name", label: "Pathway" },
-        { key: "current_level", label: "Level" },
-        { key: "status", label: "Status" },
-        { key: "started_at", label: "Started", format: formatDate },
-        { key: "completed_at", label: "Completed", format: formatDate }
-      ],
-      "No detailed pathway history yet. Future meetings and education tracking will populate this."
-    )}
-
-    ${renderListTable(
-      "Speeches",
-      data.speeches || [],
-      [
-        { key: "speech_title", label: "Title" },
-        { key: "pathway_name", label: "Pathway" },
-        { key: "project_name", label: "Project" },
-        { key: "level_number", label: "Level" },
-        { key: "speech_date", label: "Date", format: formatDate }
-      ],
-      "No speech history yet. Completed meeting agendas will feed this section."
-    )}
-
-    ${renderListTable(
-      "Attendance",
-      data.attendance || [],
-      [
-        { key: "meeting_date", label: "Date", format: formatDate },
-        { key: "attendance_status", label: "Status" },
-        { key: "role_taken", label: "Role" },
-        { key: "notes", label: "Notes" }
-      ],
-      "No attendance records yet. Meeting attendance will populate this automatically."
-    )}
-
-    ${renderListTable(
-      "Officer Terms",
-      data.officerTerms || [],
-      [
-        { key: "officer_role", label: "Role" },
-        { key: "term_label", label: "Term" },
-        { key: "term_start", label: "Start", format: formatDate },
-        { key: "term_end", label: "End", format: formatDate },
-        { key: "status", label: "Status" }
-      ],
-      "No officer history yet. Officer term assignment will populate this section."
-    )}
-
-    ${renderListTable(
-      "Awards",
-      data.awards || [],
-      [
-        { key: "award_type", label: "Type" },
-        { key: "award_name", label: "Award" },
-        { key: "award_date", label: "Date", format: formatDate },
-        { key: "source", label: "Source" }
-      ],
-      "No awards recorded yet."
-    )}
-
-    ${renderListTable(
-      "Goals",
-      data.goals || [],
-      [
-        { key: "goal_type", label: "Type" },
-        { key: "goal_title", label: "Goal" },
-        { key: "target_date", label: "Target", format: formatDate },
-        { key: "status", label: "Status" }
-      ],
-      "No member goals recorded yet."
-    )}
-
-    ${emptyState(
-      "Mentoring",
-      "Mentor and mentee relationships will be connected here after the mentoring module is added."
-    )}
-  `;
-}
-
-export function renderMemberDetails(memberId) {
-  currentMemberId = memberId;
-
-  return `
-    <section id="member360Content" class="content">
-      <section class="hero">
-        <p class="eyebrow">Member 360</p>
-        <h3>Loading Member...</h3>
-        <p>Fetching member profile and activity history.</p>
-      </section>
-    </section>
-  `;
-}
-
-export async function initMemberDetails() {
-  const container = document.getElementById("member360Content");
-
-  if (!currentMemberId) {
-    container.innerHTML = `
-      <section class="module-panel">
-        <div class="enterprise-form">
-          No member selected. Please go back to Members and select a member.
-        </div>
-      </section>
-    `;
-    return;
-  }
-
-  try {
-    const response = await apiRequest(`/api/members/${currentMemberId}`);
-    member360Data = response.data;
-
-    container.innerHTML = renderMember360(member360Data);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  } catch (error) {
-    container.innerHTML = `
-      <section class="module-panel">
-        <div class="enterprise-form">
-          Failed to load member: ${escapeHtml(error.message)}
-        </div>
-      </section>
-    `;
-  }
-}
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
