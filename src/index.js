@@ -334,6 +334,162 @@ async function executeClubStatement(
     sql
   );
 }
+function sqlEscape(value) {
+  if (value === null || value === undefined) return null;
+  return String(value).replaceAll("'", "''");
+}
+
+function sqlValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "NULL";
+  }
+
+  return `'${sqlEscape(value)}'`;
+}
+
+async function listMembers(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        id,
+        member_number,
+        toastmasters_id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        phone,
+        membership_type,
+        membership_status,
+        join_date,
+        renewal_date,
+        pathway_name,
+        pathway_level,
+        active_officer_role,
+        created_at,
+        updated_at
+      FROM members
+      ORDER BY last_name ASC, first_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function createMember(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const body = await request.json();
+
+  const firstName = String(body.firstName || "").trim();
+  const lastName = String(body.lastName || "").trim();
+
+  if (!firstName) {
+    return json({ success: false, error: "First name is required" }, 400);
+  }
+
+  if (!lastName) {
+    return json({ success: false, error: "Last name is required" }, 400);
+  }
+
+  const memberId = id("member");
+  const createdAt = now();
+  const displayName = `${firstName} ${lastName}`.trim();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO members (
+        id,
+        member_number,
+        toastmasters_id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        phone,
+        membership_type,
+        membership_status,
+        join_date,
+        renewal_date,
+        mentor_member_id,
+        sponsor_member_id,
+        pathway_name,
+        pathway_level,
+        active_officer_role,
+        notes,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${sqlValue(memberId)},
+        ${sqlValue(body.memberNumber)},
+        ${sqlValue(body.toastmastersId)},
+        ${sqlValue(firstName)},
+        ${sqlValue(lastName)},
+        ${sqlValue(displayName)},
+        ${sqlValue(body.email)},
+        ${sqlValue(body.phone)},
+        ${sqlValue(body.membershipType || "Member")},
+        ${sqlValue(body.membershipStatus || "ACTIVE")},
+        ${sqlValue(body.joinDate)},
+        ${sqlValue(body.renewalDate)},
+        ${sqlValue(body.mentorMemberId)},
+        ${sqlValue(body.sponsorMemberId)},
+        ${sqlValue(body.pathwayName)},
+        ${Number(body.pathwayLevel || 0)},
+        ${sqlValue(body.activeOfficerRole)},
+        ${sqlValue(body.notes)},
+        ${sqlValue(createdAt)},
+        ${sqlValue(createdAt)}
+      )
+    `
+  );
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "CREATE_MEMBER",
+    entityType: "member",
+    entityId: memberId,
+    details: {
+      clubId: auth.user.club_id,
+      firstName,
+      lastName,
+      email: body.email || null
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: memberId,
+      firstName,
+      lastName,
+      displayName,
+      email: body.email || null,
+      membershipStatus: body.membershipStatus || "ACTIVE",
+      createdAt
+    }
+  }, 201);
+}
+
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -1061,7 +1217,9 @@ async function handleRequest(request, env) {
   if (url.pathname === "/api/auth/me" && request.method === "GET") return me(request, env);
 
   if (url.pathname === "/api/club/context" && request.method === "GET") return getClubContext(request, env);
+  if (url.pathname === "/api/members" && request.method === "GET") {  return listMembers(request, env);}
 
+  if (url.pathname === "/api/members" && request.method === "POST") { return createMember(request, env);}
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "POST") return createClub(request, env);
