@@ -489,7 +489,133 @@ async function createMember(request, env) {
     }
   }, 201);
 }
+async function getMemberDetails(request, env, memberId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const memberResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        id,
+        member_number,
+        toastmasters_id,
+        first_name,
+        last_name,
+        display_name,
+        email,
+        phone,
+        membership_type,
+        membership_status,
+        join_date,
+        renewal_date,
+        mentor_member_id,
+        sponsor_member_id,
+        pathway_name,
+        pathway_level,
+        active_officer_role,
+        notes,
+        created_at,
+        updated_at
+      FROM members
+      WHERE id = ${sqlValue(memberId)}
+      LIMIT 1
+    `
+  );
+
+  const memberRows = memberResult?.[0]?.results || memberResult?.results || [];
+  const member = memberRows[0];
+
+  if (!member) {
+    return json({ success: false, error: "Member not found" }, 404);
+  }
+
+  const pathwaysResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM member_pathways
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY created_at DESC
+    `
+  );
+
+  const awardsResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM member_awards
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY award_date DESC, created_at DESC
+    `
+  );
+
+  const officerTermsResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM member_officer_terms
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY term_start DESC
+    `
+  );
+
+  const attendanceResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM member_attendance
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY meeting_date DESC
+      LIMIT 20
+    `
+  );
+
+  const speechesResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM member_speeches
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY speech_date DESC, created_at DESC
+      LIMIT 20
+    `
+  );
+
+  const goalsResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM member_goals
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY created_at DESC
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      member,
+      pathways: pathwaysResult?.[0]?.results || pathwaysResult?.results || [],
+      awards: awardsResult?.[0]?.results || awardsResult?.results || [],
+      officerTerms: officerTermsResult?.[0]?.results || officerTermsResult?.results || [],
+      attendance: attendanceResult?.[0]?.results || attendanceResult?.results || [],
+      speeches: speechesResult?.[0]?.results || speechesResult?.results || [],
+      goals: goalsResult?.[0]?.results || goalsResult?.results || []
+    }
+  });
+}
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -1218,8 +1344,11 @@ async function handleRequest(request, env) {
 
   if (url.pathname === "/api/club/context" && request.method === "GET") return getClubContext(request, env);
   if (url.pathname === "/api/members" && request.method === "GET") {  return listMembers(request, env);}
-
   if (url.pathname === "/api/members" && request.method === "POST") { return createMember(request, env);}
+  const memberDetailsMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
+if (memberDetailsMatch && request.method === "GET") {
+  return getMemberDetails(request, env, memberDetailsMatch[1]);
+}
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "POST") return createClub(request, env);
