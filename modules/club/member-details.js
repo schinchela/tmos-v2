@@ -33,10 +33,15 @@ function statusBadge(status) {
 
 function emptyState(title, description) {
   return `
-    <div class="card">
-      <span>${escapeHtml(title)}</span>
-      <p>${escapeHtml(description)}</p>
-    </div>
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>${escapeHtml(title)}</h3>
+        <span class="badge warning">Pending</span>
+      </div>
+      <div class="enterprise-form">
+        <p>${escapeHtml(description)}</p>
+      </div>
+    </section>
   `;
 }
 
@@ -52,7 +57,7 @@ function renderProfile(member) {
         <div class="form-grid">
           <div class="card">
             <span>Name</span>
-            <strong>${escapeHtml(member.display_name || `${member.first_name} ${member.last_name}`)}</strong>
+            <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong>
           </div>
 
           <div class="card">
@@ -108,7 +113,8 @@ function renderListTable(title, rows, columns, emptyDescription) {
   if (!rows.length) {
     return emptyState(title, emptyDescription);
   }
-    return `
+
+  return `
     <section class="module-panel">
       <div class="panel-header">
         <h3>${escapeHtml(title)}</h3>
@@ -124,9 +130,14 @@ function renderListTable(title, rows, columns, emptyDescription) {
         <tbody>
           ${rows.map((row) => `
             <tr>
-              ${columns.map((column) => `
-                <td>${escapeHtml(column.format ? column.format(row[column.key], row) : row[column.key] || "-")}</td>
-              `).join("")}
+              ${columns.map((column) => {
+                const rawValue = row[column.key];
+                const value = column.format
+                  ? column.format(rawValue, row)
+                  : rawValue || "-";
+
+                return `<td>${escapeHtml(value)}</td>`;
+              }).join("")}
             </tr>
           `).join("")}
         </tbody>
@@ -141,7 +152,7 @@ function renderMember360(data) {
   return `
     <section class="hero">
       <p class="eyebrow">Member 360</p>
-      <h3>${escapeHtml(member.display_name || `${member.first_name} ${member.last_name}`)}</h3>
+      <h3>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</h3>
       <p>
         Complete member profile across membership, Pathways, speeches, attendance,
         awards, goals and officer leadership history.
@@ -259,24 +270,36 @@ export function renderMemberDetails(memberId) {
   currentMemberId = memberId;
 
   return `
-    <section class="hero">
-      <p class="eyebrow">Member 360</p>
-      <h3>Loading Member...</h3>
-      <p>Fetching member profile and activity history.</p>
+    <section id="member360Content" class="content">
+      <section class="hero">
+        <p class="eyebrow">Member 360</p>
+        <h3>Loading Member...</h3>
+        <p>Fetching member profile and activity history.</p>
+      </section>
     </section>
-
-    <section id="member360Content" class="content"></section>
   `;
 }
 
 export async function initMemberDetails() {
   const container = document.getElementById("member360Content");
 
+  if (!currentMemberId) {
+    container.innerHTML = `
+      <section class="module-panel">
+        <div class="enterprise-form">
+          No member selected. Please go back to Members and select a member.
+        </div>
+      </section>
+    `;
+    return;
+  }
+
   try {
     const response = await apiRequest(`/api/members/${currentMemberId}`);
     member360Data = response.data;
 
     container.innerHTML = renderMember360(member360Data);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     container.innerHTML = `
       <section class="module-panel">
