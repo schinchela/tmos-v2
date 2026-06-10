@@ -20,10 +20,13 @@ const CLUB_MIGRATIONS = [
         value TEXT,
         updated_at TEXT NOT NULL
       )`,
+      `INSERT OR IGNORE INTO club_settings (key, value, updated_at)
+       VALUES ('officer_term_cycle', 'YEARLY', datetime('now'))`,
       `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
        VALUES ('001_core', datetime('now'))`
     ]
   },
+
   {
     version: "002_members",
     sql: [
@@ -54,6 +57,153 @@ const CLUB_MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_members_tm_id ON members(toastmasters_id)`,
       `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
        VALUES ('002_members', datetime('now'))`
+    ]
+  },
+
+  {
+    version: "003_officer_terms",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS officer_terms (
+        id TEXT PRIMARY KEY,
+        term_label TEXT NOT NULL,
+        term_cycle TEXT NOT NULL,
+        term_start TEXT NOT NULL,
+        term_end TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS member_officer_terms (
+        id TEXT PRIMARY KEY,
+        member_id TEXT NOT NULL,
+        officer_role TEXT NOT NULL,
+        term_id TEXT NOT NULL,
+        term_label TEXT NOT NULL,
+        term_start TEXT NOT NULL,
+        term_end TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_member_officer_terms_member ON member_officer_terms(member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_member_officer_terms_role ON member_officer_terms(officer_role)`,
+      `CREATE INDEX IF NOT EXISTS idx_member_officer_terms_term ON member_officer_terms(term_id)`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('003_officer_terms', datetime('now'))`
+    ]
+  },
+
+  {
+    version: "004_member_attendance",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS member_attendance (
+        id TEXT PRIMARY KEY,
+        member_id TEXT NOT NULL,
+        meeting_id TEXT,
+        meeting_date TEXT NOT NULL,
+        attendance_status TEXT NOT NULL,
+        role_taken TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_attendance_member ON member_attendance(member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_attendance_date ON member_attendance(meeting_date)`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('004_member_attendance', datetime('now'))`
+    ]
+  },
+
+  {
+    version: "005_member_speeches",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS member_speeches (
+        id TEXT PRIMARY KEY,
+        member_id TEXT NOT NULL,
+        meeting_id TEXT,
+        speech_title TEXT NOT NULL,
+        pathway_name TEXT,
+        project_name TEXT,
+        level_number INTEGER,
+        speech_date TEXT,
+        evaluator_member_id TEXT,
+        duration_seconds INTEGER,
+        status TEXT NOT NULL DEFAULT 'COMPLETED',
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_speeches_member ON member_speeches(member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_speeches_date ON member_speeches(speech_date)`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('005_member_speeches', datetime('now'))`
+    ]
+  },
+
+  {
+    version: "006_member_awards",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS member_awards (
+        id TEXT PRIMARY KEY,
+        member_id TEXT NOT NULL,
+        award_type TEXT NOT NULL,
+        award_name TEXT NOT NULL,
+        award_date TEXT,
+        source TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_awards_member ON member_awards(member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_awards_date ON member_awards(award_date)`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('006_member_awards', datetime('now'))`
+    ]
+  },
+
+  {
+    version: "007_member_pathways",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS member_pathways (
+        id TEXT PRIMARY KEY,
+        member_id TEXT NOT NULL,
+        pathway_name TEXT NOT NULL,
+        current_level INTEGER DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        started_at TEXT,
+        level_1_completed_at TEXT,
+        level_2_completed_at TEXT,
+        level_3_completed_at TEXT,
+        level_4_completed_at TEXT,
+        level_5_completed_at TEXT,
+        completed_at TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_pathways_member ON member_pathways(member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_pathways_status ON member_pathways(status)`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('007_member_pathways', datetime('now'))`
+    ]
+  },
+
+  {
+    version: "008_member_goals",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS member_goals (
+        id TEXT PRIMARY KEY,
+        member_id TEXT NOT NULL,
+        goal_type TEXT NOT NULL,
+        goal_title TEXT NOT NULL,
+        target_date TEXT,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        progress_notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_goals_member ON member_goals(member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_goals_status ON member_goals(status)`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('008_member_goals', datetime('now'))`
     ]
   }
 ];
