@@ -15,7 +15,8 @@ import {
 } from "../../modules/platform/users.js";
 
 import {
-  renderPlatformAudit
+  renderPlatformAudit,
+  initPlatformAudit
 } from "../../modules/platform/audit.js";
 
 const routes = {
@@ -38,7 +39,8 @@ const routes = {
 
   "platform-audit": {
     title: "Audit Logs",
-    render: renderPlatformAudit
+    render: renderPlatformAudit,
+    init: initPlatformAudit
   }
 };
 
