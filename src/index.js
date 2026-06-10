@@ -39,6 +39,10 @@ function cleanSlug(value) {
     .slice(0, 12);
 }
 
+function generateTempPassword() {
+  return `TMOS-${Math.random().toString(36).slice(2, 8)}-${new Date().getFullYear()}`;
+}
+
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
   const hash = await crypto.subtle.digest("SHA-256", data);
@@ -380,6 +384,8 @@ async function createClub(request, env) {
 
   const name = String(body.clubName || "").trim();
   const slug = cleanSlug(body.clubCode || body.clubName);
+  const adminName = String(body.adminName || "").trim();
+  const adminEmail = String(body.adminEmail || "").toLowerCase().trim();
 
   if (!name) return json({ success: false, error: "Club name is required" }, 400);
   if (!slug) return json({ success: false, error: "Club short code is required" }, 400);
@@ -392,13 +398,28 @@ async function createClub(request, env) {
     return json({ success: false, error: "Club short code already exists" }, 409);
   }
 
+  if (adminEmail) {
+    const existingAdmin = await env.DB.prepare(`
+      SELECT id FROM users WHERE email = ?
+    `).bind(adminEmail).first();
+
+    if (existingAdmin) {
+      return json({ success: false, error: "Club admin email already exists" }, 409);
+    }
+  }
+
   const clubId = id("club");
   const clubDbId = id("clubdb");
   const jobId = id("prov");
   const databaseName = await generateUniqueDatabaseName(env.DB, slug);
   const createdAt = now();
 
-  await env.DB.batch([
+  let adminUserId = null;
+  let temporaryPassword = null;
+  let firstName = null;
+  let lastName = null;
+
+  const statements = [
     env.DB.prepare(`
       INSERT INTO clubs (
         id, name, slug, database_name, status, city, country, created_at, created_by
@@ -453,7 +474,53 @@ async function createClub(request, env) {
       auth.user.id,
       createdAt
     )
-  ]);
+  ];
+
+  if (adminEmail) {
+    adminUserId = id("user");
+    temporaryPassword = generateTempPassword();
+
+    const salt = crypto.randomUUID();
+    const hash = await passwordHash(temporaryPassword, salt);
+
+    const parts = adminName.split(" ").filter(Boolean);
+    firstName = parts[0] || "Club";
+    lastName = parts.slice(1).join(" ") || "Admin";
+
+    statements.push(
+      env.DB.prepare(`
+        INSERT INTO users (
+          id,
+          email,
+          password_hash,
+          first_name,
+          last_name,
+          role,
+          club_id,
+          status,
+          created_at,
+          phone,
+          invited_at,
+          created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        adminUserId,
+        adminEmail,
+        `${salt}:${hash}`,
+        firstName,
+        lastName,
+        "CLUB_ADMIN",
+        clubId,
+        "ACTIVE",
+        createdAt,
+        null,
+        createdAt,
+        auth.user.id
+      )
+    );
+  }
+
+  await env.DB.batch(statements);
 
   await writeAudit(env, {
     userId: auth.user.id,
@@ -465,9 +532,24 @@ async function createClub(request, env) {
       slug,
       databaseName,
       provisioningJobId: jobId,
-      status: "PROVISIONING"
+      status: "PROVISIONING",
+      adminEmail: adminEmail || null
     }
   });
+
+  if (adminEmail) {
+    await writeAudit(env, {
+      userId: auth.user.id,
+      action: "CREATE_CLUB_ADMIN",
+      entityType: "user",
+      entityId: adminUserId,
+      details: {
+        email: adminEmail,
+        role: "CLUB_ADMIN",
+        clubId
+      }
+    });
+  }
 
   return json({
     success: true,
@@ -480,7 +562,17 @@ async function createClub(request, env) {
       provisioningJobId: jobId,
       city: body.city || null,
       country: body.country || null,
-      createdAt
+      createdAt,
+      clubAdmin: adminEmail
+        ? {
+            id: adminUserId,
+            email: adminEmail,
+            firstName,
+            lastName,
+            role: "CLUB_ADMIN",
+            temporaryPassword
+          }
+        : null
     }
   }, 201);
 }
@@ -506,30 +598,19 @@ async function completeProvisioning(request, env, jobId) {
       UPDATE provisioning_jobs
       SET status = ?, current_step = ?, completed_at = ?, error_message = NULL
       WHERE id = ?
-    `).bind(
-      "COMPLETED",
-      "COMPLETED",
-      completedAt,
-      jobId
-    ),
+    `).bind("COMPLETED", "COMPLETED", completedAt, jobId),
 
     env.DB.prepare(`
       UPDATE clubs
       SET status = ?
       WHERE id = ?
-    `).bind(
-      "ACTIVE",
-      job.club_id
-    ),
+    `).bind("ACTIVE", job.club_id),
 
     env.DB.prepare(`
       UPDATE club_databases
       SET status = ?
       WHERE club_id = ?
-    `).bind(
-      "ACTIVE",
-      job.club_id
-    )
+    `).bind("ACTIVE", job.club_id)
   ]);
 
   await writeAudit(env, {
@@ -578,30 +659,19 @@ async function failProvisioning(request, env, jobId) {
       UPDATE provisioning_jobs
       SET status = ?, current_step = ?, error_message = ?
       WHERE id = ?
-    `).bind(
-      "FAILED",
-      "FAILED",
-      errorMessage,
-      jobId
-    ),
+    `).bind("FAILED", "FAILED", errorMessage, jobId),
 
     env.DB.prepare(`
       UPDATE clubs
       SET status = ?
       WHERE id = ?
-    `).bind(
-      "PROVISIONING",
-      job.club_id
-    ),
+    `).bind("PROVISIONING", job.club_id),
 
     env.DB.prepare(`
       UPDATE club_databases
       SET status = ?
       WHERE club_id = ?
-    `).bind(
-      "FAILED",
-      job.club_id
-    )
+    `).bind("FAILED", job.club_id)
   ]);
 
   await writeAudit(env, {
