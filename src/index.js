@@ -7,6 +7,57 @@ const CORS_HEADERS = {
 
 const SESSION_DAYS = 7;
 
+const CLUB_MIGRATIONS = [
+  {
+    version: "001_core",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS schema_migrations (
+        version TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS club_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT NOT NULL
+      )`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('001_core', datetime('now'))`
+    ]
+  },
+  {
+    version: "002_members",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS members (
+        id TEXT PRIMARY KEY,
+        member_number TEXT,
+        toastmasters_id TEXT,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        display_name TEXT,
+        email TEXT,
+        phone TEXT,
+        membership_type TEXT,
+        membership_status TEXT NOT NULL DEFAULT 'ACTIVE',
+        join_date TEXT,
+        renewal_date TEXT,
+        mentor_member_id TEXT,
+        sponsor_member_id TEXT,
+        pathway_name TEXT,
+        pathway_level INTEGER DEFAULT 0,
+        active_officer_role TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_members_status ON members(membership_status)`,
+      `CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)`,
+      `CREATE INDEX IF NOT EXISTS idx_members_tm_id ON members(toastmasters_id)`,
+      `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+       VALUES ('002_members', datetime('now'))`
+    ]
+  }
+];
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -76,6 +127,79 @@ async function writeAudit(env, {
     JSON.stringify(details),
     now()
   ).run();
+}
+
+async function cloudflareRequest(env, path, options = {}) {
+  if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) {
+    throw new Error("Cloudflare provisioning secrets are missing");
+  }
+
+  const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
+    method: options.method || "GET",
+    headers: {
+      "Authorization": `Bearer ${env.CF_API_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || !data?.success) {
+    const message =
+      data?.errors?.[0]?.message ||
+      data?.messages?.[0]?.message ||
+      "Cloudflare API request failed";
+
+    throw new Error(message);
+  }
+
+  return data.result;
+}
+
+async function createCloudflareD1Database(env, databaseName) {
+  const result = await cloudflareRequest(
+    env,
+    `/accounts/${env.CF_ACCOUNT_ID}/d1/database`,
+    {
+      method: "POST",
+      body: {
+        name: databaseName
+      }
+    }
+  );
+
+  return {
+    id: result.uuid || result.id,
+    name: result.name
+  };
+}
+
+async function runCloudflareD1Query(env, databaseId, sql) {
+  return cloudflareRequest(
+    env,
+    `/accounts/${env.CF_ACCOUNT_ID}/d1/database/${databaseId}/query`,
+    {
+      method: "POST",
+      body: {
+        sql
+      }
+    }
+  );
+}
+
+async function runClubMigrations(env, databaseId) {
+  for (const migration of CLUB_MIGRATIONS) {
+    for (const statement of migration.sql) {
+      await runCloudflareD1Query(env, databaseId, statement);
+    }
+  }
+}
+
+async function provisionClubDatabase(env, databaseName) {
+  const d1Database = await createCloudflareD1Database(env, databaseName);
+  await runClubMigrations(env, d1Database.id);
+  return d1Database;
 }
 
 function getBearerToken(request) {
@@ -150,42 +274,6 @@ async function requireSuperAdmin(request, env) {
   }
 
   return auth;
-}
-
-async function createCloudflareD1Database(env, databaseName) {
-  if (!env.CF_ACCOUNT_ID || !env.CF_API_TOKEN) {
-    throw new Error("Cloudflare provisioning secrets are missing");
-  }
-
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/d1/database`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.CF_API_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        name: databaseName
-      })
-    }
-  );
-
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok || !data?.success) {
-    const message =
-      data?.errors?.[0]?.message ||
-      data?.messages?.[0]?.message ||
-      "Failed to create D1 database";
-
-    throw new Error(message);
-  }
-
-  return {
-    id: data.result.uuid || data.result.id,
-    name: data.result.name
-  };
 }
 
 async function setupPassword(request, env) {
@@ -437,24 +525,19 @@ async function createClub(request, env) {
   let d1Database;
 
   try {
-    d1Database = await createCloudflareD1Database(env, databaseName);
+    d1Database = await provisionClubDatabase(env, databaseName);
   } catch (error) {
     await writeAudit(env, {
       userId: auth.user.id,
-      action: "D1_CREATE_FAILED",
+      action: "CLUB_PROVISIONING_FAILED",
       entityType: "club",
       entityId: clubId,
-      details: {
-        name,
-        slug,
-        databaseName,
-        error: error.message
-      }
+      details: { name, slug, databaseName, error: error.message }
     });
 
     return json({
       success: false,
-      error: `D1 creation failed: ${error.message}`
+      error: `Club provisioning failed: ${error.message}`
     }, 500);
   }
 
@@ -511,7 +594,7 @@ async function createClub(request, env) {
       clubId,
       databaseName,
       "COMPLETED",
-      "D1_DATABASE_CREATED",
+      "MIGRATIONS_APPLIED",
       createdAt,
       createdAt,
       null,
@@ -568,7 +651,7 @@ async function createClub(request, env) {
 
   await writeAudit(env, {
     userId: auth.user.id,
-    action: "CREATE_CLUB_WITH_D1",
+    action: "CREATE_CLUB_WITH_D1_AND_SCHEMA",
     entityType: "club",
     entityId: clubId,
     details: {
@@ -576,6 +659,7 @@ async function createClub(request, env) {
       slug,
       databaseName,
       databaseIdentifier: d1Database.id,
+      migrations: CLUB_MIGRATIONS.map((m) => m.version),
       provisioningJobId: jobId,
       status: "ACTIVE",
       adminEmail: adminEmail || null
@@ -606,6 +690,7 @@ async function createClub(request, env) {
       databaseIdentifier: d1Database.id,
       status: "ACTIVE",
       provisioningJobId: jobId,
+      migrationsApplied: CLUB_MIGRATIONS.map((m) => m.version),
       city: body.city || null,
       country: body.country || null,
       createdAt,
@@ -621,62 +706,6 @@ async function createClub(request, env) {
         : null
     }
   }, 201);
-}
-
-async function completeProvisioning(request, env, jobId) {
-  const auth = await requireSuperAdmin(request, env);
-  if (!auth.ok) return auth.response;
-
-  const job = await env.DB.prepare(`
-    SELECT id, club_id, database_name
-    FROM provisioning_jobs
-    WHERE id = ?
-  `).bind(jobId).first();
-
-  if (!job) {
-    return json({ success: false, error: "Provisioning job not found" }, 404);
-  }
-
-  const completedAt = now();
-
-  await env.DB.batch([
-    env.DB.prepare(`
-      UPDATE provisioning_jobs
-      SET status = ?, current_step = ?, completed_at = ?, error_message = NULL
-      WHERE id = ?
-    `).bind("COMPLETED", "COMPLETED", completedAt, jobId),
-
-    env.DB.prepare(`
-      UPDATE clubs SET status = ? WHERE id = ?
-    `).bind("ACTIVE", job.club_id),
-
-    env.DB.prepare(`
-      UPDATE club_databases SET status = ? WHERE club_id = ?
-    `).bind("ACTIVE", job.club_id)
-  ]);
-
-  await writeAudit(env, {
-    userId: auth.user.id,
-    action: "PROVISIONING_COMPLETED",
-    entityType: "provisioning_job",
-    entityId: jobId,
-    details: {
-      clubId: job.club_id,
-      databaseName: job.database_name
-    }
-  });
-
-  return json({
-    success: true,
-    data: {
-      id: jobId,
-      clubId: job.club_id,
-      databaseName: job.database_name,
-      status: "COMPLETED",
-      clubStatus: "ACTIVE",
-      completedAt
-    }
-  });
 }
 
 async function listClubs(env) {
@@ -898,6 +927,65 @@ async function createUser(request, env) {
   }, 201);
 }
 
+async function completeProvisioning(request, env, jobId) {
+  const auth = await requireSuperAdmin(request, env);
+  if (!auth.ok) return auth.response;
+
+  const completedAt = now();
+
+  const job = await env.DB.prepare(`
+    SELECT id, club_id, database_name
+    FROM provisioning_jobs
+    WHERE id = ?
+  `).bind(jobId).first();
+
+  if (!job) {
+    return json({ success: false, error: "Provisioning job not found" }, 404);
+  }
+
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE provisioning_jobs
+      SET status = ?, current_step = ?, completed_at = ?, error_message = NULL
+      WHERE id = ?
+    `).bind("COMPLETED", "COMPLETED", completedAt, jobId),
+
+    env.DB.prepare(`
+      UPDATE clubs
+      SET status = ?
+      WHERE id = ?
+    `).bind("ACTIVE", job.club_id),
+
+    env.DB.prepare(`
+      UPDATE club_databases
+      SET status = ?
+      WHERE club_id = ?
+    `).bind("ACTIVE", job.club_id)
+  ]);
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "PROVISIONING_COMPLETED",
+    entityType: "provisioning_job",
+    entityId: jobId,
+    details: {
+      clubId: job.club_id,
+      databaseName: job.database_name
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: jobId,
+      clubId: job.club_id,
+      databaseName: job.database_name,
+      status: "COMPLETED",
+      completedAt
+    }
+  });
+}
+
 async function handleRequest(request, env) {
   const url = new URL(request.url);
 
@@ -921,7 +1009,8 @@ async function handleRequest(request, env) {
       runtime: "Cloudflare Worker",
       database: env.DB ? "connected" : "missing",
       auth: "enabled",
-      automaticD1Provisioning: "enabled"
+      automaticD1Provisioning: "enabled",
+      schemaMigrations: CLUB_MIGRATIONS.map((m) => m.version)
     });
   }
 
