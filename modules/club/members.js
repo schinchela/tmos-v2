@@ -34,7 +34,7 @@ function statusBadge(status) {
 function renderMemberRows(members) {
   if (!members.length) {
     return `
-      <tr>
+      <tr class="clickable-row" data-member-id="${escapeHtml(member.id)}">
         <td colspan="8">
           No members found. Add your first club member to begin tracking attendance,
           speeches, pathways, officer terms and goals.
@@ -317,7 +317,16 @@ export async function initClubMembers() {
 
   refreshBtn?.addEventListener("click", loadMembers);
   searchInput?.addEventListener("input", applySearch);
+  document.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-member-id]");
+  if (!row) return;
 
+  window.TMOS_SELECTED_MEMBER_ID = row.dataset.memberId;
+
+  import("../../assets/js/router.js").then(({ navigate }) => {
+    navigate("club-member-details");
+  });
+});
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
