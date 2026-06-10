@@ -1,7 +1,8 @@
 import { setCurrentModule } from "./state.js";
 
 import {
-  renderPlatformDashboard
+  renderPlatformDashboard,
+  initPlatformDashboard
 } from "../../modules/platform/dashboard.js";
 
 import {
@@ -20,17 +21,21 @@ import {
 const routes = {
   "platform-dashboard": {
     title: "Platform Dashboard",
-    render: renderPlatformDashboard
+    render: renderPlatformDashboard,
+    init: initPlatformDashboard
   },
+
   "platform-clubs": {
     title: "Clubs",
     render: renderPlatformClubs,
     init: initPlatformClubs
   },
+
   "platform-users": {
     title: "Users",
     render: renderPlatformUsers
   },
+
   "platform-audit": {
     title: "Audit Logs",
     render: renderPlatformAudit
