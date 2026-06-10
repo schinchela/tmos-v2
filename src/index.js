@@ -42,6 +42,7 @@ function cleanSlug(value) {
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
   const hash = await crypto.subtle.digest("SHA-256", data);
+
   return [...new Uint8Array(hash)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
@@ -120,7 +121,7 @@ async function getCurrentUser(request, env) {
   `).bind(session.user_id).first();
 }
 
-async function requireSuperAdmin(request, env) {
+async function requireAuth(request, env) {
   const user = await getCurrentUser(request, env);
 
   if (!user) {
@@ -130,14 +131,21 @@ async function requireSuperAdmin(request, env) {
     };
   }
 
-  if (user.role !== "SUPER_ADMIN") {
+  return { ok: true, user };
+}
+
+async function requireSuperAdmin(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth;
+
+  if (auth.user.role !== "SUPER_ADMIN") {
     return {
       ok: false,
       response: json({ success: false, error: "Forbidden" }, 403)
     };
   }
 
-  return { ok: true, user };
+  return auth;
 }
 
 async function setupPassword(request, env) {
@@ -270,6 +278,81 @@ async function me(request, env) {
       lastName: user.last_name,
       role: user.role,
       clubId: user.club_id
+    }
+  });
+}
+
+async function getClubContext(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const user = auth.user;
+
+  if (!user.club_id) {
+    return json({
+      success: false,
+      error: "No club assigned to this user"
+    }, 400);
+  }
+
+  const club = await env.DB.prepare(`
+    SELECT
+      id,
+      name,
+      slug,
+      database_name,
+      status,
+      city,
+      country,
+      charter_number,
+      timezone,
+      meeting_day,
+      meeting_time,
+      website,
+      district,
+      division,
+      area,
+      created_at
+    FROM clubs
+    WHERE id = ?
+  `).bind(user.club_id).first();
+
+  if (!club) {
+    return json({
+      success: false,
+      error: "Club not found"
+    }, 404);
+  }
+
+  return json({
+    success: true,
+    data: {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+        clubId: user.club_id
+      },
+      club: {
+        id: club.id,
+        name: club.name,
+        slug: club.slug,
+        databaseName: club.database_name,
+        status: club.status,
+        city: club.city,
+        country: club.country,
+        charterNumber: club.charter_number,
+        timezone: club.timezone || "Asia/Kolkata",
+        meetingDay: club.meeting_day,
+        meetingTime: club.meeting_time,
+        website: club.website,
+        district: club.district,
+        division: club.division,
+        area: club.area,
+        createdAt: club.created_at
+      }
     }
   });
 }
@@ -442,8 +525,10 @@ async function listRoles() {
       { code: "PRESIDENT", name: "President", scope: "CLUB" },
       { code: "VPE", name: "Vice President Education", scope: "CLUB" },
       { code: "VPM", name: "Vice President Membership", scope: "CLUB" },
+      { code: "VPPR", name: "Vice President Public Relations", scope: "CLUB" },
       { code: "SECRETARY", name: "Secretary", scope: "CLUB" },
       { code: "TREASURER", name: "Treasurer", scope: "CLUB" },
+      { code: "SAA", name: "Sergeant at Arms", scope: "CLUB" },
       { code: "MEMBER", name: "Member", scope: "CLUB" }
     ]
   });
@@ -603,6 +688,10 @@ async function handleRequest(request, env) {
 
   if (url.pathname === "/api/auth/me" && request.method === "GET") {
     return me(request, env);
+  }
+
+  if (url.pathname === "/api/club/context" && request.method === "GET") {
+    return getClubContext(request, env);
   }
 
   if (url.pathname === "/api/platform/stats" && request.method === "GET") {
