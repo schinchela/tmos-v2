@@ -11,7 +11,8 @@ import {
 } from "../../modules/platform/clubs.js";
 
 import {
-  renderPlatformUsers
+  renderPlatformUsers,
+  initPlatformUsers
 } from "../../modules/platform/users.js";
 
 import {
@@ -34,7 +35,8 @@ const routes = {
 
   "platform-users": {
     title: "Users",
-    render: renderPlatformUsers
+    render: renderPlatformUsers,
+    init: initPlatformUsers
   },
 
   "platform-audit": {
