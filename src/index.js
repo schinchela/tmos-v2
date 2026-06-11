@@ -3679,7 +3679,7 @@ async function getMeetingAwards(request, env, meetingId) {
 
   return json({
     success: true,
-    data: result?.[0]?.results || result?.results || []
+    data: { finalized: awards.length >0, awards }
   });
 }
 
