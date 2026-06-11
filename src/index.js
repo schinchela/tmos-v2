@@ -183,6 +183,160 @@ const CLUB_MIGRATIONS = [
       `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('008_member_goals', datetime('now'))`
     ]
   }
+  {
+  version: "009_meetings",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS meetings (
+      id TEXT PRIMARY KEY,
+      meeting_title TEXT NOT NULL,
+      meeting_type TEXT NOT NULL DEFAULT 'REGULAR',
+      meeting_theme TEXT,
+      meeting_date TEXT NOT NULL,
+      start_time TEXT,
+      end_time TEXT,
+      venue TEXT,
+      online_link TEXT,
+      status TEXT NOT NULL DEFAULT 'DRAFT',
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(meeting_date)`,
+    `CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('009_meetings', datetime('now'))`
+  ]
+},
+{
+  version: "010_meeting_participants",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS meeting_participants (
+      id TEXT PRIMARY KEY,
+      meeting_id TEXT NOT NULL,
+      participant_type TEXT NOT NULL,
+      participant_id TEXT,
+      display_name TEXT NOT NULL,
+      email TEXT,
+      attendance_status TEXT NOT NULL DEFAULT 'PRESENT',
+      present_at TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_participants_meeting ON meeting_participants(meeting_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_participants_type ON meeting_participants(participant_type)`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_participants_attendance ON meeting_participants(attendance_status)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('010_meeting_participants', datetime('now'))`
+  ]
+},
+{
+  version: "011_meeting_role_assignments",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS meeting_role_assignments (
+      id TEXT PRIMARY KEY,
+      meeting_id TEXT NOT NULL,
+      participant_ref_id TEXT,
+      role_code TEXT NOT NULL,
+      role_name TEXT NOT NULL,
+      assignment_status TEXT NOT NULL DEFAULT 'PLANNED',
+      sequence_order INTEGER DEFAULT 0,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_roles_meeting ON meeting_role_assignments(meeting_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_roles_participant ON meeting_role_assignments(participant_ref_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_roles_role ON meeting_role_assignments(role_code)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('011_meeting_role_assignments', datetime('now'))`
+  ]
+},
+{
+  version: "012_meeting_speeches",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS meeting_speeches (
+      id TEXT PRIMARY KEY,
+      meeting_id TEXT NOT NULL,
+      speaker_participant_id TEXT,
+      evaluator_participant_id TEXT,
+      speech_title TEXT,
+      speech_type TEXT,
+      pathway_name TEXT,
+      project_name TEXT,
+      level_number INTEGER,
+      planned_duration_min INTEGER,
+      actual_duration_seconds INTEGER,
+      speech_status TEXT NOT NULL DEFAULT 'PLANNED',
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_speeches_meeting ON meeting_speeches(meeting_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_speeches_speaker ON meeting_speeches(speaker_participant_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_speeches_evaluator ON meeting_speeches(evaluator_participant_id)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('012_meeting_speeches', datetime('now'))`
+  ]
+},
+{
+  version: "013_meeting_evaluations",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS meeting_evaluations (
+      id TEXT PRIMARY KEY,
+      meeting_id TEXT NOT NULL,
+      speaker_participant_id TEXT,
+      evaluator_participant_id TEXT,
+      speech_id TEXT,
+      evaluation_type TEXT DEFAULT 'SPEECH',
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_evaluations_meeting ON meeting_evaluations(meeting_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_evaluations_speaker ON meeting_evaluations(speaker_participant_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_evaluations_evaluator ON meeting_evaluations(evaluator_participant_id)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('013_meeting_evaluations', datetime('now'))`
+  ]
+},
+{
+  version: "014_meeting_table_topics",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS meeting_table_topics (
+      id TEXT PRIMARY KEY,
+      meeting_id TEXT NOT NULL,
+      participant_ref_id TEXT,
+      question TEXT,
+      response_time_seconds INTEGER,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_table_topics_meeting ON meeting_table_topics(meeting_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_table_topics_participant ON meeting_table_topics(participant_ref_id)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('014_meeting_table_topics', datetime('now'))`
+  ]
+},
+{
+  version: "015_meeting_awards",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS meeting_awards (
+      id TEXT PRIMARY KEY,
+      meeting_id TEXT NOT NULL,
+      participant_ref_id TEXT,
+      award_type TEXT NOT NULL,
+      award_name TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_awards_meeting ON meeting_awards(meeting_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_meeting_awards_participant ON meeting_awards(participant_ref_id)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('015_meeting_awards', datetime('now'))`
+  ]
+}
 ];
 
 function json(data, status = 200) {
