@@ -1074,6 +1074,36 @@ await executeClubStatement(
       regularMeetingTime
     }
   });
+const defaultMeetingMode = body.defaultMeetingMode || "PHYSICAL";
+const defaultVenue = body.defaultVenue || "";
+const defaultOnlineLink = body.defaultOnlineLink || "";
+  await executeClubStatement(
+  env,
+  auth.user.club_id,
+  `
+    INSERT OR REPLACE INTO club_settings (key, value, updated_at)
+    VALUES ('default_meeting_mode', ${sqlValue(defaultMeetingMode)}, ${sqlValue(now())})
+  `
+);
+
+await executeClubStatement(
+  env,
+  auth.user.club_id,
+  `
+    INSERT OR REPLACE INTO club_settings (key, value, updated_at)
+    VALUES ('default_venue', ${sqlValue(defaultVenue)}, ${sqlValue(now())})
+  `
+);
+
+await executeClubStatement(
+  env,
+  auth.user.club_id,
+  `
+    INSERT OR REPLACE INTO club_settings (key, value, updated_at)
+    VALUES ('default_online_link', ${sqlValue(defaultOnlineLink)}, ${sqlValue(now())})
+  `
+);
+  
 }
 
 async function listOfficerTerms(request, env) {
