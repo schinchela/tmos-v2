@@ -11,6 +11,8 @@ let meetingRoleConfig = [];
 let awardCandidates = [];
 let votingSession = null;
 let votingResults = [];
+let finalizedAwards = [];
+
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -667,10 +669,36 @@ function renderAwardsPanel(candidates, session, results) {
 
   return `
     <section class="module-panel">
-      <div class="panel-header">
-        <h3>Awards</h3>
-        <span class="badge">${candidates.length} Candidates</span>
+      ${
+  finalizedAwards.length
+    ? `
+      <div class="module-panel">
+        <div class="panel-header">
+          <h3>Award Winners</h3>
+          <span class="badge">${finalizedAwards.length}</span>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Award</th>
+              <th>Winner</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${finalizedAwards.map((award) => `
+              <tr>
+                <td>${escapeHtml(award.award_name)}</td>
+                <td>${escapeHtml(award.winner_name)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
       </div>
+    `
+    : ""
+}
 
       <div class="enterprise-form">
         <div class="top-actions">
@@ -1031,6 +1059,18 @@ async function loadVotingResults() {
   }
 }
 
+async function loadFinalizedAwards() {
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/awards`
+    );
+
+    finalizedAwards = response.data || [];
+  } catch (_) {
+    finalizedAwards = [];
+  }
+}
+
 async function loadMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
   await loadAttendanceSources();
@@ -1038,6 +1078,7 @@ async function loadMeetingDetails() {
   await loadAwardCandidates();
   await loadVotingSession();
   await loadVotingResults();
+  await loadFinalizedAwards();
   
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
@@ -1622,6 +1663,7 @@ document.getElementById("copyVotingLinkBtn")?.addEventListener("click", async ()
   }
 });
 }
+
 
 export async function initMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
