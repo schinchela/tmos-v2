@@ -2010,6 +2010,152 @@ async function deleteMeeting(request, env, meetingId) {
   });
 }
 
+async function listAgendaSpeeches(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_speeches
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY created_at ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function createAgendaSpeech(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const speechId = id("speech");
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_speeches (
+        id,
+        meeting_id,
+        speaker_participant_id,
+        evaluator_participant_id,
+        speech_title,
+        speech_type,
+        pathway_name,
+        project_name,
+        level_number,
+        planned_duration_min,
+        actual_duration_seconds,
+        speech_status,
+        notes,
+
+        planned_speaker_type,
+        planned_speaker_id,
+        planned_speaker_name,
+        planned_speaker_email,
+
+        planned_evaluator_type,
+        planned_evaluator_id,
+        planned_evaluator_name,
+        planned_evaluator_email,
+
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(speechId)},
+        ${sqlValue(meetingId)},
+        NULL,
+        NULL,
+        ${sqlValue(body.speechTitle)},
+        ${sqlValue(body.speechType || "PATHWAY")},
+        ${sqlValue(body.pathwayName)},
+        ${sqlValue(body.projectName)},
+        ${Number(body.levelNumber || 0)},
+        ${Number(body.plannedDurationMin || 0)},
+        NULL,
+        ${sqlValue(body.speechStatus || "PLANNED")},
+        ${sqlValue(body.notes)},
+
+        ${sqlValue(body.plannedSpeakerType)},
+        ${sqlValue(body.plannedSpeakerId)},
+        ${sqlValue(body.plannedSpeakerName)},
+        ${sqlValue(body.plannedSpeakerEmail)},
+
+        ${sqlValue(body.plannedEvaluatorType)},
+        ${sqlValue(body.plannedEvaluatorId)},
+        ${sqlValue(body.plannedEvaluatorName)},
+        ${sqlValue(body.plannedEvaluatorEmail)},
+
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: speechId
+    }
+  }, 201);
+}
+
+async function updateAgendaSpeech(request, env, meetingId, speechId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meeting_speeches
+      SET
+        speech_title = ${sqlValue(body.speechTitle)},
+        speech_type = ${sqlValue(body.speechType || "PATHWAY")},
+        pathway_name = ${sqlValue(body.pathwayName)},
+        project_name = ${sqlValue(body.projectName)},
+        level_number = ${Number(body.levelNumber || 0)},
+        planned_duration_min = ${Number(body.plannedDurationMin || 0)},
+        speech_status = ${sqlValue(body.speechStatus || "PLANNED")},
+        notes = ${sqlValue(body.notes)},
+
+        planned_speaker_type = ${sqlValue(body.plannedSpeakerType)},
+        planned_speaker_id = ${sqlValue(body.plannedSpeakerId)},
+        planned_speaker_name = ${sqlValue(body.plannedSpeakerName)},
+        planned_speaker_email = ${sqlValue(body.plannedSpeakerEmail)},
+
+        planned_evaluator_type = ${sqlValue(body.plannedEvaluatorType)},
+        planned_evaluator_id = ${sqlValue(body.plannedEvaluatorId)},
+        planned_evaluator_name = ${sqlValue(body.plannedEvaluatorName)},
+        planned_evaluator_email = ${sqlValue(body.plannedEvaluatorEmail)},
+
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(speechId)}
+      AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: speechId
+    }
+  });
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2771,7 +2917,12 @@ async function handleRequest(request, env) {
   if (agendaRoleUpdateMatch && request.method === "PUT") {  return updateAgendaRole(request,env,agendaRoleUpdateMatch[1],agendaRoleUpdateMatch[2]);}
   const meetingMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)$/);
   if (meetingMatch && request.method === "DELETE") {  return deleteMeeting(request,env,meetingMatch[1]);}
-
+  const agendaSpeechesMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-speeches$/);
+  if (agendaSpeechesMatch && request.method === "GET") { return listAgendaSpeeches(request, env, agendaSpeechesMatch[1]);}
+  if (agendaSpeechesMatch && request.method === "POST") { return createAgendaSpeech(request, env, agendaSpeechesMatch[1]);}
+  const agendaSpeechUpdateMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-speeches\/([^/]+)$/);
+  if (agendaSpeechUpdateMatch && request.method === "PUT") { return updateAgendaSpeech(request,env,agendaSpeechUpdateMatch[1],agendaSpeechUpdateMatch[2]);}
+  
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
