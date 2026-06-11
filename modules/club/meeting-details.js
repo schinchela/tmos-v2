@@ -290,7 +290,36 @@ async function loadMeetingDetails() {
   meetingData = response.data;
 
   container.innerHTML = renderMeetingCommandCenter(meetingData);
+  bindMeetingCommandCenterEvents();
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function bindMeetingCommandCenterEvents() {
+  const form = document.getElementById("addParticipantForm");
+  const message = document.getElementById("participantMessage");
+  const button = document.getElementById("addParticipantBtn");
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const payload = Object.fromEntries(new FormData(form).entries());
+
+    message.textContent = "Adding participant...";
+    button.disabled = true;
+
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}/participants`, {
+        method: "POST",
+        body: payload
+      });
+
+      form.reset();
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
 }
 
 export async function initMeetingDetails() {
