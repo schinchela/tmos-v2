@@ -14,7 +14,16 @@ function escapeHtml(value) {
 
 function formatDate(value) {
   if (!value) return "-";
-  return new Date(value).toLocaleDateString();
+
+  const [year, month, day] = String(value).slice(0, 10).split("-");
+
+  if (!year || !month || !day) return "-";
+
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day)
+  ).toLocaleDateString();
 }
 
 function toDateInputValue(date) {
