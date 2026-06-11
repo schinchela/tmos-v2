@@ -156,6 +156,8 @@ function renderPersonOptions(items) {
         value="${escapeHtml(item.id)}"
         data-name="${escapeHtml(item.display_name)}"
         data-email="${escapeHtml(item.email || "")}"
+        data-pathway="${escapeHtml(item.pathway_name || "")}"
+        data-level="${escapeHtml(item.pathway_level || 0)}"
       >
         ${escapeHtml(item.display_name)}${item.email ? ` — ${escapeHtml(item.email)}` : ""}
       </option>
@@ -845,6 +847,28 @@ agendaRoleForm?.addEventListener("submit", async (event) => {
   const agendaSpeechForm = document.getElementById("addAgendaSpeechForm");
 
 const speakerType = document.getElementById("speechSpeakerType");
+const memberSpeakerSelect =  document.getElementById("speechMemberSpeakerSelect");
+const speechPathway =  document.getElementById("speechPathway");
+const speechLevel =  document.getElementById("speechLevel");
+function updateSpeechEducationFields() {
+  if (speakerType?.value !== "MEMBER") return;
+
+  const selected =
+    memberSpeakerSelect?.selectedOptions?.[0];
+
+  const pathway =
+    selected?.dataset.pathway || "";
+
+  const completedLevel =
+    Number(selected?.dataset.level || 0);
+
+  const nextLevel =
+    Math.min(completedLevel + 1, 5);
+
+  speechPathway.value = pathway;
+  speechLevel.value = pathway ? String(nextLevel) : "0";
+}
+  
 const memberSpeakerWrap = document.getElementById("speechMemberSpeakerWrap");
 const guestSpeakerWrap = document.getElementById("speechGuestSpeakerWrap");
 const visitorSpeakerWrap = document.getElementById("speechVisitorSpeakerWrap");
@@ -872,10 +896,12 @@ function updateSpeechEvaluatorUI() {
 
 speakerType?.addEventListener("change", updateSpeechSpeakerUI);
 evaluatorType?.addEventListener("change", updateSpeechEvaluatorUI);
-
+speakerType?.addEventListener("change", updateSpeechEducationFields);
+memberSpeakerSelect?.addEventListener("change", updateSpeechEducationFields);
+  
 updateSpeechSpeakerUI();
 updateSpeechEvaluatorUI();
-
+updateSpeechEducationFields();
 agendaSpeechForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
 
