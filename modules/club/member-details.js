@@ -458,7 +458,7 @@ function renderPathwayManager(pathways) {
             <th>Pathway</th>
             <th>Completed Level</th>
             <th>Status</th>
-            <th>Mark Complete</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -480,6 +480,12 @@ function renderPathwayManager(pathways) {
                     >
                       Save
                     </button>
+                    <button
+                    class="ghost-btn small-btn danger"
+                    data-delete-pathway="${escapeHtml(pathway.id)}"
+                    type="button">
+                    Delete
+                  </button>
                   </td>
                 </tr>
               `).join("")
@@ -903,6 +909,35 @@ document.querySelectorAll("[data-update-pathway]").forEach((button) => {
     }
   });
 });
+
+  document.querySelectorAll("[data-delete-pathway]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const pathwayId = button.dataset.deletePathway;
+
+    if (!confirm("Delete this pathway? This cannot be undone.")) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Deleting...";
+
+    try {
+      await apiRequest(
+        `/api/members/${currentMemberId}/pathways/${pathwayId}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+      await loadMember360();
+    } catch (error) {
+      alert(error.message);
+      button.disabled = false;
+      button.textContent = "Delete";
+    }
+  });
+});
+  
 }
 
 export async function initMemberDetails() {
