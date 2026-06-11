@@ -1643,6 +1643,102 @@ async function listMeetingAttendanceSources(request, env) {
   });
 }
 
+async function listConfiguration(request, env, configType) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM club_configuration
+      WHERE config_type = ${sqlValue(configType)}
+      ORDER BY sort_order ASC, config_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function createConfiguration(request, env, configType) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const configId = id("cfg");
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO club_configuration (
+        id,
+        config_group,
+        config_type,
+        config_key,
+        config_name,
+        config_value_json,
+        is_active,
+        sort_order,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(configId)},
+        ${sqlValue(body.configGroup || "MEETINGS")},
+        ${sqlValue(configType)},
+        ${sqlValue(body.configKey)},
+        ${sqlValue(body.configName)},
+        ${sqlValue(JSON.stringify(body.configValue || {}))},
+        1,
+        ${sqlValue(body.sortOrder || 999)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+    `
+  );
+
+  return json({
+    success: true,
+    data: { id: configId }
+  }, 201);
+}
+
+async function updateConfiguration(request, env, configType, configId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE club_configuration
+      SET
+        config_name = ${sqlValue(body.configName)},
+        config_key = ${sqlValue(body.configKey)},
+        config_value_json = ${sqlValue(JSON.stringify(body.configValue || {}))},
+        is_active = ${body.isActive ? 1 : 0},
+        sort_order = ${sqlValue(body.sortOrder || 999)},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(configId)}
+      AND config_type = ${sqlValue(configType)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
+
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2392,8 +2488,13 @@ async function handleRequest(request, env) {
   if (meetingParticipantsMatch && request.method === "GET") {  return listMeetingParticipants(request, env, meetingParticipantsMatch[1]);}
   if (meetingParticipantsMatch && request.method === "POST") {  return addMeetingParticipant(request, env, meetingParticipantsMatch[1]);}
   if (url.pathname === "/api/meeting-attendance-sources" && request.method === "GET") {  return listMeetingAttendanceSources(request, env);}
-                                                        
+  const configurationTypeMatch =  url.pathname.match(/^\/api\/configuration\/([^/]+)$/);
+  if (configurationTypeMatch && request.method === "GET") {  return listConfiguration(request,env,configurationTypeMatch[1]);}
+  if (configurationTypeMatch && request.method === "POST") { return createConfiguration(request,env,configurationTypeMatch[1]);}
+  const configurationUpdateMatch = url.pathname.match(/^\/api\/configuration\/([^/]+)\/([^/]+)$/);
+  if (configurationUpdateMatch && request.method === "PUT") { return updateConfiguration(request,env,configurationUpdateMatch[1],configurationUpdateMatch[2]);}                                                      
 
+  
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "POST") return createClub(request, env);
