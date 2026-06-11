@@ -11,7 +11,10 @@ let meetingRoleConfig = [];
 let awardCandidates = [];
 let votingSession = null;
 let votingResults = [];
-let finalizedAwards = [];
+let finalizedAwards = {
+  finalized: false,
+  awards: []
+};
 
 
 function escapeHtml(value) {
@@ -664,9 +667,42 @@ function groupAwardCandidates(candidates) {
 }
 
 function renderAwardsPanel(candidates, session, results) {
+  const awardsAreFinalized =
+  finalizedAwards?.finalized === true;
+  const winnerAwards =
+  finalizedAwards?.awards || [];
   const grouped = Object.values(groupAwardCandidates(candidates));
   const voteUrl = session?.voteUrl || session?.vote_url || "";
+  if (awardsAreFinalized) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Award Winners</h3>
+        <span class="badge">
+          ${winnerAwards.length}
+        </span>
+      </div>
 
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Award</th>
+            <th>Winner</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${winnerAwards.map((award) => `
+            <tr>
+              <td>${escapeHtml(award.award_name)}</td>
+              <td>${escapeHtml(award.winner_name)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
   return `
     <section class="module-panel">
       ${
@@ -1065,7 +1101,10 @@ async function loadFinalizedAwards() {
       `/api/meetings/${currentMeetingId}/awards`
     );
 
-    finalizedAwards = response.data || [];
+    finalizedAwards = response.data || {
+  finalized: false,
+  awards: []
+};
   } catch (_) {
     finalizedAwards = [];
   }
