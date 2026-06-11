@@ -387,6 +387,168 @@ const availableGuests = attendanceSources.guests;
   `;
 }
 
+function renderAgendaSpeechesPanel(speeches) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Speeches & Evaluations</h3>
+        <span class="badge">${speeches.length} Planned</span>
+      </div>
+
+      <form class="enterprise-form" id="addAgendaSpeechForm">
+        <div class="form-grid">
+          <label>
+            Speaker Type
+            <select id="speechSpeakerType">
+              <option value="MEMBER">Member</option>
+              <option value="GUEST">Guest</option>
+              <option value="VISITOR">Manual Visitor</option>
+            </select>
+          </label>
+
+          <label id="speechMemberSpeakerWrap">
+            Speaker
+            <select id="speechMemberSpeakerSelect">
+              ${renderPersonOptions(attendanceSources.members)}
+            </select>
+          </label>
+
+          <label id="speechGuestSpeakerWrap" style="display:none;">
+            Guest Speaker
+            <select id="speechGuestSpeakerSelect">
+              ${renderPersonOptions(attendanceSources.guests)}
+            </select>
+          </label>
+
+          <label id="speechVisitorSpeakerWrap" style="display:none;">
+            Visitor Speaker
+            <input id="speechVisitorSpeakerName" placeholder="Speaker name" />
+          </label>
+
+          <label>
+            Speech Title
+            <input id="speechTitle" placeholder="Speech title" required />
+          </label>
+
+          <label>
+            Speech Type
+            <select id="speechType">
+              <option value="PATHWAY">Pathway Speech</option>
+              <option value="ICE_BREAKER">Ice Breaker</option>
+              <option value="GUEST_SPEECH">Guest Speech</option>
+              <option value="WORKSHOP">Workshop</option>
+              <option value="SPECIAL">Special Speech</option>
+            </select>
+          </label>
+
+          <label>
+            Pathway
+            <input id="speechPathway" placeholder="Optional pathway" />
+          </label>
+
+          <label>
+            Level
+            <select id="speechLevel">
+              <option value="0">Not Applicable</option>
+              <option value="1">Level 1</option>
+              <option value="2">Level 2</option>
+              <option value="3">Level 3</option>
+              <option value="4">Level 4</option>
+              <option value="5">Level 5</option>
+            </select>
+          </label>
+
+          <label>
+            Project
+            <input id="speechProject" placeholder="Project name" />
+          </label>
+
+          <label>
+            Evaluator Type
+            <select id="speechEvaluatorType">
+              <option value="">No evaluator yet</option>
+              <option value="MEMBER">Member</option>
+              <option value="GUEST">Guest</option>
+              <option value="VISITOR">Manual Visitor</option>
+            </select>
+          </label>
+
+          <label id="speechMemberEvaluatorWrap" style="display:none;">
+            Evaluator
+            <select id="speechMemberEvaluatorSelect">
+              ${renderPersonOptions(attendanceSources.members)}
+            </select>
+          </label>
+
+          <label id="speechGuestEvaluatorWrap" style="display:none;">
+            Guest Evaluator
+            <select id="speechGuestEvaluatorSelect">
+              ${renderPersonOptions(attendanceSources.guests)}
+            </select>
+          </label>
+
+          <label id="speechVisitorEvaluatorWrap" style="display:none;">
+            Visitor Evaluator
+            <input id="speechVisitorEvaluatorName" placeholder="Evaluator name" />
+          </label>
+
+          <label>
+            Planned Duration
+            <input id="speechDuration" type="number" min="0" placeholder="Minutes" />
+          </label>
+
+          <label>
+            Notes
+            <input id="speechNotes" placeholder="Optional notes" />
+          </label>
+        </div>
+
+        <button class="primary-btn" id="addAgendaSpeechBtn" type="submit">
+          Add Planned Speech
+        </button>
+
+        <p class="form-message" id="agendaSpeechMessage"></p>
+      </form>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Speaker</th>
+            <th>Speech</th>
+            <th>Evaluator</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${
+            speeches.length
+              ? speeches.map((speech) => `
+                <tr>
+                  <td><strong>${escapeHtml(speech.planned_speaker_name || "Unassigned")}</strong></td>
+                  <td>
+                    ${escapeHtml(speech.speech_title || "-")}<br>
+                    <small>
+                      ${escapeHtml(speech.pathway_name || "")}
+                      ${speech.level_number ? ` Level ${escapeHtml(speech.level_number)}` : ""}
+                    </small>
+                  </td>
+                  <td>${escapeHtml(speech.planned_evaluator_name || "No evaluator")}</td>
+                  <td>${escapeHtml(speech.speech_status || "PLANNED")}</td>
+                </tr>
+              `).join("")
+              : `
+                <tr>
+                  <td colspan="4">No speeches planned yet.</td>
+                </tr>
+              `
+          }
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -421,10 +583,7 @@ function renderMeetingCommandCenter(data) {
     
     ${renderAgendaRolesPanel(data.roles || [])}
 
-    ${emptyPanel(
-      "Speeches & Evaluations",
-      "Add speakers and evaluators from present participants. This will later update Member 360 and Education."
-    )}
+    ${renderAgendaSpeechesPanel(data.speeches || [])}
 
     ${emptyPanel(
       "Table Topics",
@@ -683,6 +842,130 @@ agendaRoleForm?.addEventListener("submit", async (event) => {
       button.disabled = false;
     }
   });
+  const agendaSpeechForm = document.getElementById("addAgendaSpeechForm");
+
+const speakerType = document.getElementById("speechSpeakerType");
+const memberSpeakerWrap = document.getElementById("speechMemberSpeakerWrap");
+const guestSpeakerWrap = document.getElementById("speechGuestSpeakerWrap");
+const visitorSpeakerWrap = document.getElementById("speechVisitorSpeakerWrap");
+
+const evaluatorType = document.getElementById("speechEvaluatorType");
+const memberEvaluatorWrap = document.getElementById("speechMemberEvaluatorWrap");
+const guestEvaluatorWrap = document.getElementById("speechGuestEvaluatorWrap");
+const visitorEvaluatorWrap = document.getElementById("speechVisitorEvaluatorWrap");
+
+function updateSpeechSpeakerUI() {
+  const value = speakerType?.value || "MEMBER";
+
+  memberSpeakerWrap.style.display = value === "MEMBER" ? "" : "none";
+  guestSpeakerWrap.style.display = value === "GUEST" ? "" : "none";
+  visitorSpeakerWrap.style.display = value === "VISITOR" ? "" : "none";
+}
+
+function updateSpeechEvaluatorUI() {
+  const value = evaluatorType?.value || "";
+
+  memberEvaluatorWrap.style.display = value === "MEMBER" ? "" : "none";
+  guestEvaluatorWrap.style.display = value === "GUEST" ? "" : "none";
+  visitorEvaluatorWrap.style.display = value === "VISITOR" ? "" : "none";
+}
+
+speakerType?.addEventListener("change", updateSpeechSpeakerUI);
+evaluatorType?.addEventListener("change", updateSpeechEvaluatorUI);
+
+updateSpeechSpeakerUI();
+updateSpeechEvaluatorUI();
+
+agendaSpeechForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const message = document.getElementById("agendaSpeechMessage");
+  const button = document.getElementById("addAgendaSpeechBtn");
+
+  let plannedSpeakerId = "";
+  let plannedSpeakerName = "";
+  let plannedSpeakerEmail = "";
+
+  if (speakerType.value === "MEMBER") {
+    const selected = document.getElementById("speechMemberSpeakerSelect").selectedOptions?.[0];
+    plannedSpeakerId = document.getElementById("speechMemberSpeakerSelect").value;
+    plannedSpeakerName = selected?.dataset.name || "";
+    plannedSpeakerEmail = selected?.dataset.email || "";
+  }
+
+  if (speakerType.value === "GUEST") {
+    const selected = document.getElementById("speechGuestSpeakerSelect").selectedOptions?.[0];
+    plannedSpeakerId = document.getElementById("speechGuestSpeakerSelect").value;
+    plannedSpeakerName = selected?.dataset.name || "";
+    plannedSpeakerEmail = selected?.dataset.email || "";
+  }
+
+  if (speakerType.value === "VISITOR") {
+    plannedSpeakerName = document.getElementById("speechVisitorSpeakerName").value;
+  }
+
+  let plannedEvaluatorId = "";
+  let plannedEvaluatorName = "";
+  let plannedEvaluatorEmail = "";
+
+  if (evaluatorType.value === "MEMBER") {
+    const selected = document.getElementById("speechMemberEvaluatorSelect").selectedOptions?.[0];
+    plannedEvaluatorId = document.getElementById("speechMemberEvaluatorSelect").value;
+    plannedEvaluatorName = selected?.dataset.name || "";
+    plannedEvaluatorEmail = selected?.dataset.email || "";
+  }
+
+  if (evaluatorType.value === "GUEST") {
+    const selected = document.getElementById("speechGuestEvaluatorSelect").selectedOptions?.[0];
+    plannedEvaluatorId = document.getElementById("speechGuestEvaluatorSelect").value;
+    plannedEvaluatorName = selected?.dataset.name || "";
+    plannedEvaluatorEmail = selected?.dataset.email || "";
+  }
+
+  if (evaluatorType.value === "VISITOR") {
+    plannedEvaluatorName = document.getElementById("speechVisitorEvaluatorName").value;
+  }
+
+  if (!plannedSpeakerName) {
+    message.textContent = "Please select or enter a speaker.";
+    return;
+  }
+
+  message.textContent = "Adding planned speech...";
+  button.disabled = true;
+
+  try {
+    await apiRequest(`/api/meetings/${currentMeetingId}/agenda-speeches`, {
+      method: "POST",
+      body: {
+        plannedSpeakerType: speakerType.value,
+        plannedSpeakerId,
+        plannedSpeakerName,
+        plannedSpeakerEmail,
+
+        speechTitle: document.getElementById("speechTitle").value,
+        speechType: document.getElementById("speechType").value,
+        pathwayName: document.getElementById("speechPathway").value,
+        levelNumber: document.getElementById("speechLevel").value,
+        projectName: document.getElementById("speechProject").value,
+        plannedDurationMin: document.getElementById("speechDuration").value,
+        notes: document.getElementById("speechNotes").value,
+
+        plannedEvaluatorType: evaluatorType.value,
+        plannedEvaluatorId,
+        plannedEvaluatorName,
+        plannedEvaluatorEmail,
+
+        speechStatus: "PLANNED"
+      }
+    });
+
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+    button.disabled = false;
+  }
+});
 }
 
 export async function initMeetingDetails() {
