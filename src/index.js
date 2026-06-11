@@ -2244,31 +2244,29 @@ async function handleRequest(request, env) {
   if (url.pathname === "/api/auth/login" && request.method === "POST") return login(request, env);
   if (url.pathname === "/api/auth/logout" && request.method === "POST") return logout(request, env);
   if (url.pathname === "/api/auth/me" && request.method === "GET") return me(request, env);
-  if (url.pathname === "/api/club/context" && request.method === "GET") return getClubContext(request, env);
-  
+  if (url.pathname === "/api/club/context" && request.method === "GET") {  return getClubContext(request, env);}
   if (url.pathname === "/api/members" && request.method === "GET") {  return listMembers(request, env);}
-  if (url.pathname === "/api/members" && request.method === "POST") { return createMember(request, env);}
+  if (url.pathname === "/api/members" && request.method === "POST") {  return createMember(request, env);}
   const memberDetailsMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
   if (memberDetailsMatch && request.method === "GET") { return getMemberDetails(request, env, memberDetailsMatch[1]);}
   const updateMemberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
-  if (updateMemberMatch && request.method === "PUT") { return updateMember(request, env, updateMemberMatch[1]);}
+  if (updateMemberMatch && request.method === "PUT") {  return updateMember(request, env, updateMemberMatch[1]);}
   if (url.pathname === "/api/club/settings" && request.method === "GET") { return getClubSettings(request, env);}
-  if (url.pathname === "/api/club/settings" &&  request.method === "PUT") { return updateClubSettings(request, env);}
-  if (url.pathname === "/api/officer-terms" &&  request.method === "GET") {  return listOfficerTerms(request, env);}
-  if (url.pathname === "/api/officer-terms" &&  request.method === "POST") {  return createOfficerTerm(request, env);}
+  if (url.pathname === "/api/club/settings" && request.method === "PUT") {  return updateClubSettings(request, env);}
+  if (url.pathname === "/api/officer-terms" && request.method === "GET") {  return listOfficerTerms(request, env);}
+  if (url.pathname === "/api/officer-terms" && request.method === "POST") {  return createOfficerTerm(request, env);}
   const officerAssignmentMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/officer-terms$/);
-  if (officerAssignmentMatch && request.method === "POST") { return assignOfficerTerm(request,env,officerAssignmentMatch[1]);}
+  if (officerAssignmentMatch && request.method === "POST") { return assignOfficerTerm(request, env, officerAssignmentMatch[1]);}
   const endOfficerTermMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/officer-terms\/([^/]+)\/end$/);
-  if (endOfficerTermMatch &&  request.method === "POST") { return endOfficerTerm(request,env,endOfficerTermMatch[1],endOfficerTermMatch[2]);}
+  if (endOfficerTermMatch && request.method === "POST") { return endOfficerTerm(request, env, endOfficerTermMatch[1], endOfficerTermMatch[2]);}
   const archiveMemberMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/archive$/);
-  if (archiveMemberMatch && request.method === "POST") { return archiveMember(request,env,archiveMemberMatch[1]);}
-
-  if (url.pathname === "/api/meetings" && request.method === "GET") {  return listMeetings(request, env);}
+  if (archiveMemberMatch && request.method === "POST") {  return archiveMember(request, env, archiveMemberMatch[1]);}
+  if (url.pathname === "/api/meetings" && request.method === "GET") { return listMeetings(request, env);}
   if (url.pathname === "/api/meetings" && request.method === "POST") { return createMeeting(request, env);}
   const meetingDetailsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)$/);
-  if (meetingDetailsMatch && request.method === "GET") { return getMeetingDetails(request, env, meetingDetailsMatch[1]);}
+  if (meetingDetailsMatch && request.method === "GET") {  return getMeetingDetails(request, env, meetingDetailsMatch[1]);}
   const updateMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)$/);
-  if (updateMeetingMatch && request.method === "PUT") { return updateMeeting(request, env, updateMeetingMatch[1]);}
+  if (updateMeetingMatch && request.method === "PUT") {  return updateMeeting(request, env, updateMeetingMatch[1]);}
   const meetingParticipantsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/participants$/);
   if (meetingParticipantsMatch && request.method === "GET") {  return listMeetingParticipants(request, env, meetingParticipantsMatch[1]);}
   if (meetingParticipantsMatch && request.method === "POST") {  return addMeetingParticipant(request, env, meetingParticipantsMatch[1]);}
