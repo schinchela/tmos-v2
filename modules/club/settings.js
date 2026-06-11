@@ -432,18 +432,18 @@ function renderRoleCheckboxes(selectedCodes, prefix) {
   const selected = new Set(selectedCodes || []);
 
   return `
-    <div class="form-grid">
+    <div class="checkbox-grid">
       ${configurationRoles
         .filter((role) => Number(role.is_active) === 1)
         .map((role) => `
-          <label>
+          <label class="checkbox-row">
             <input
               type="checkbox"
               data-award-role="${escapeHtml(prefix)}"
               value="${escapeHtml(role.config_key)}"
               ${selected.has(role.config_key) ? "checked" : ""}
             />
-            ${escapeHtml(role.config_name)}
+            <span>${escapeHtml(role.config_name)}</span>
           </label>
         `)
         .join("")}
