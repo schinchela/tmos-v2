@@ -442,7 +442,7 @@ function renderRoleCheckboxes(selectedCodes, prefix) {
               data-award-role="${escapeHtml(prefix)}"
               value="${escapeHtml(role.config_key)}"
               ${selected.has(role.config_key) ? "checked" : ""}
-            />
+            >
             <span>${escapeHtml(role.config_name)}</span>
           </label>
         `)
