@@ -570,7 +570,44 @@ async function applyMigration019(
     "TEXT"
   );
 }
+async function applyMigration020(env, databaseId) {
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS meeting_table_topics (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
 
+        participant_ref_id TEXT,
+        participant_type TEXT,
+        participant_id TEXT,
+
+        participant_name TEXT,
+        participant_email TEXT,
+
+        created_at TEXT,
+        updated_at TEXT
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_meeting_table_topics_meeting",
+    "meeting_table_topics",
+    "meeting_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_meeting_table_topics_participant",
+    "meeting_table_topics",
+    "participant_ref_id"
+  );
+}
 
 
 function json(data, status = 200) {
@@ -2592,7 +2629,110 @@ async function deleteMemberPathway(request, env, memberId, pathwayId) {
     success: true
   });
 }
+async function listTableTopics(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_table_topics
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY participant_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function addTableTopicParticipant(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const existing = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT id
+      FROM meeting_table_topics
+      WHERE meeting_id = ${sqlValue(meetingId)}
+        AND participant_ref_id = ${sqlValue(body.participantRefId)}
+      LIMIT 1
+    `
+  );
+
+  const rows = existing?.[0]?.results || existing?.results || [];
+
+  if (rows.length) {
+    return json({
+      success: false,
+      error: "This participant is already added to Table Topics."
+    }, 400);
+  }
+
+  const topicId = id("tt");
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_table_topics (
+        id,
+        meeting_id,
+        participant_ref_id,
+        participant_type,
+        participant_id,
+        participant_name,
+        participant_email,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(topicId)},
+        ${sqlValue(meetingId)},
+        ${sqlValue(body.participantRefId)},
+        ${sqlValue(body.participantType)},
+        ${sqlValue(body.participantId)},
+        ${sqlValue(body.participantName)},
+        ${sqlValue(body.participantEmail)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+    `
+  );
+
+  return json({
+    success: true,
+    data: { id: topicId }
+  }, 201);
+}
+
+async function deleteTableTopicParticipant(request, env, meetingId, topicId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_table_topics
+      WHERE id = ${sqlValue(topicId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2616,6 +2756,7 @@ async function runClubMigrations(env, databaseId) {
     env,
     databaseId
   );
+  await applyMigration020(env, databaseId);
 
   await runCloudflareD1Batch(
   env,
@@ -2641,10 +2782,25 @@ async function runClubMigrations(env, databaseId) {
     `
   ]
 );
+  await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '020_table_topics_participants',
+        datetime('now')
+      )
+    `
+  ]
+);
 
   applied.push("018_planned_agenda_speeches");
   applied.push("019_member_recognition_suffix");
-
+  applied.push("020_table_topics_participants");
   return applied;
 }
 
@@ -3410,7 +3566,11 @@ async function handleRequest(request, env) {
   if (memberPathwayLevelMatch && request.method === "PUT") { return updateMemberPathwayLevel(request,env,memberPathwayLevelMatch[1],memberPathwayLevelMatch[2]);}
   const memberPathwayDeleteMatch =  url.pathname.match(/^\/api\/members\/([^/]+)\/pathways\/([^/]+)$/);
   if (memberPathwayDeleteMatch && request.method === "DELETE") {  return deleteMemberPathway(request,env,memberPathwayDeleteMatch[1],memberPathwayDeleteMatch[2]);}
-
+  const tableTopicsMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/table-topics$/);
+  if (tableTopicsMatch && request.method === "GET") {  return listTableTopics(request, env, tableTopicsMatch[1]);}
+  if (tableTopicsMatch && request.method === "POST") { return addTableTopicParticipant(request, env, tableTopicsMatch[1]);}
+  const tableTopicDeleteMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/table-topics\/([^/]+)$/);
+  if (tableTopicDeleteMatch && request.method === "DELETE") { return deleteTableTopicParticipant(request,env,tableTopicDeleteMatch[1],tableTopicDeleteMatch[2]);}
   
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
