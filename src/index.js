@@ -1585,7 +1585,32 @@ async function addMeetingParticipant(request, env, meetingId) {
 
   const participantId = id("participant");
   const createdAt = now();
+if (body.participantId) {
+  const existingResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT id
+      FROM meeting_participants
+      WHERE meeting_id = ${sqlValue(meetingId)}
+        AND participant_type = ${sqlValue(participantType)}
+        AND participant_id = ${sqlValue(body.participantId)}
+      LIMIT 1
+    `
+  );
 
+  const existingRows =
+    existingResult?.[0]?.results ||
+    existingResult?.results ||
+    [];
+
+  if (existingRows.length) {
+    return json({
+      success: false,
+      error: "This person is already marked present for this meeting"
+    }, 409);
+  }
+}
   await executeClubStatement(
     env,
     auth.user.club_id,
