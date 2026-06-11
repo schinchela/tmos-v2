@@ -216,9 +216,9 @@ export function renderClubMembers() {
 
           <label>
             Pathway
-            <select name="pathwayLevel">
-            ${pathwayLevelOptions()}
-          </select>
+            <select name="pathwayName">
+            ${pathwayOptions(member.pathway_name)}
+            </select>
           </label>
 
           <label>
