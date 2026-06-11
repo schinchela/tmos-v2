@@ -1,5 +1,5 @@
 import { apiRequest } from "../../assets/js/api.js";
-import { dateInputValue } from "../../src/utils/date.js";
+import { dateInputValue } from "../../assets/js/date.js";
 
 let meetingsCache = [];
 let clubSettings = {};
