@@ -64,7 +64,7 @@ function valueOrBlank(value) {
 function statusBadge(status) {
   const value = String(status || "ACTIVE").toUpperCase();
 
-  if (["INACTIVE", "SUSPENDED", "TERMINATED"].includes(value)) {
+  if (["ARCHIVED", "INACTIVE", "SUSPENDED", "TERMINATED"].includes(value)) {
     return `<span class="badge danger">${escapeHtml(value)}</span>`;
   }
 
@@ -148,6 +148,7 @@ function renderEditForm(member) {
               <option value="PROSPECT" ${member.membership_status === "PROSPECT" ? "selected" : ""}>Prospect</option>
               <option value="ON_HOLD" ${member.membership_status === "ON_HOLD" ? "selected" : ""}>On Hold</option>
               <option value="TERMINATED" ${member.membership_status === "TERMINATED" ? "selected" : ""}>Terminated</option>
+              <option value="ARCHIVED" ${member.membership_status === "ARCHIVED" ? "selected" : ""}>Archived</option>
             </select>
           </label>
 
@@ -689,39 +690,53 @@ function bindMember360Events() {
   });
 });
   archiveBtn?.addEventListener("click", async () => {
-  if (
-    !confirm(
-      "Archive this member? All history will be preserved."
-    )
-  ) {
+  if (!confirm("Archive this member? All history will be preserved.")) {
     return;
   }
 
-  await apiRequest(
-    `/api/members/${currentMemberId}/archive`,
-    {
-      method: "POST",
-      body: {
-        status: "ARCHIVED"
-      }
-    }
-  );
+  archiveBtn.disabled = true;
+  archiveBtn.textContent = "Archiving...";
 
-  await loadMember360();
+  try {
+    await apiRequest(
+      `/api/members/${currentMemberId}/archive`,
+      {
+        method: "POST",
+        body: {
+          status: "ARCHIVED"
+        }
+      }
+    );
+
+    await loadMember360();
+  } catch (error) {
+    alert(error.message);
+    archiveBtn.disabled = false;
+    archiveBtn.textContent = "Archive Member";
+  }
 });
 
 reinstateBtn?.addEventListener("click", async () => {
-  await apiRequest(
-    `/api/members/${currentMemberId}/archive`,
-    {
-      method: "POST",
-      body: {
-        status: "ACTIVE"
-      }
-    }
-  );
+  reinstateBtn.disabled = true;
+  reinstateBtn.textContent = "Reinstating...";
 
-  await loadMember360();
+  try {
+    await apiRequest(
+      `/api/members/${currentMemberId}/archive`,
+      {
+        method: "POST",
+        body: {
+          status: "ACTIVE"
+        }
+      }
+    );
+
+    await loadMember360();
+  } catch (error) {
+    alert(error.message);
+    reinstateBtn.disabled = false;
+    reinstateBtn.textContent = "Reinstate Member";
+  }
 });
 }
 
