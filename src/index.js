@@ -969,7 +969,10 @@ async function updateClubSettings(request, env) {
 
   const officerTermCycle =
     body.officerTermCycle || "YEARLY";
+  const regularMeetingDay = body.regularMeetingDay || "";
+const regularMeetingTime = body.regularMeetingTime || "";
 
+  
   await executeClubStatement(
     env,
     auth.user.club_id,
@@ -986,7 +989,39 @@ async function updateClubSettings(request, env) {
       )
     `
   );
+await executeClubStatement(
+  env,
+  auth.user.club_id,
+  `
+    INSERT OR REPLACE INTO club_settings (
+      key,
+      value,
+      updated_at
+    )
+    VALUES (
+      'regular_meeting_day',
+      ${sqlValue(regularMeetingDay)},
+      ${sqlValue(now())}
+    )
+  `
+);
 
+await executeClubStatement(
+  env,
+  auth.user.club_id,
+  `
+    INSERT OR REPLACE INTO club_settings (
+      key,
+      value,
+      updated_at
+    )
+    VALUES (
+      'regular_meeting_time',
+      ${sqlValue(regularMeetingTime)},
+      ${sqlValue(now())}
+    )
+  `
+);
   await writeAudit(env, {
     userId: auth.user.id,
     action: "UPDATE_CLUB_SETTINGS",
