@@ -23,9 +23,13 @@ function formatDate(value) {
     Number(year),
     Number(month) - 1,
     Number(day)
-  ).toLocaleDateString();
+  ).toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
 }
-
 function toDateInputValue(date) {
   return date.toISOString().slice(0, 10);
 }
