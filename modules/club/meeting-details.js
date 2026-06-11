@@ -137,6 +137,82 @@ function renderMeetingProfile(meeting) {
   `;
 }
 
+function renderParticipantsPanel(participants) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Attendance & Participants</h3>
+        <span class="badge">${participants.length} Present</span>
+      </div>
+
+      <form class="enterprise-form" id="addParticipantForm">
+        <div class="form-grid">
+          <label>
+            Participant Type
+            <select name="participantType">
+              <option value="MEMBER">Member</option>
+              <option value="GUEST">Guest</option>
+              <option value="VISITOR">Visitor</option>
+            </select>
+          </label>
+
+          <label>
+            Display Name
+            <input name="displayName" placeholder="Participant name" required />
+          </label>
+
+          <label>
+            Email
+            <input name="email" type="email" placeholder="Optional email" />
+          </label>
+
+          <label>
+            Notes
+            <input name="notes" placeholder="Optional notes" />
+          </label>
+        </div>
+
+        <button class="primary-btn" id="addParticipantBtn" type="submit">
+          Add Present Participant
+        </button>
+
+        <p class="form-message" id="participantMessage"></p>
+      </form>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Email</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            participants.length
+              ? participants.map((participant) => `
+                <tr>
+                  <td><strong>${escapeHtml(participant.display_name)}</strong></td>
+                  <td>${escapeHtml(participant.participant_type)}</td>
+                  <td>${escapeHtml(participant.email || "-")}</td>
+                  <td>${escapeHtml(participant.attendance_status || "PRESENT")}</td>
+                </tr>
+              `).join("")
+              : `
+                <tr>
+                  <td colspan="4">
+                    No participants marked present yet.
+                  </td>
+                </tr>
+              `
+          }
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -164,11 +240,8 @@ function renderMeetingCommandCenter(data) {
 
     ${renderMeetingProfile(meeting)}
 
-    ${emptyPanel(
-      "Attendance & Participants",
-      "Next step: mark members, guests and visitors present. Everyone present becomes a meeting participant."
-    )}
-
+    ${renderParticipantsPanel(data.participants || [])}
+    
     ${emptyPanel(
       "Agenda & Roles",
       "Assign Toastmaster, GE, Timer, Ah Counter, Grammarian, Table Topics Master and custom roles from present participants."
