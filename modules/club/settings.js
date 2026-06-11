@@ -199,7 +199,7 @@ export function renderClubSettings() {
 
     <article class="card config-card" data-config-type="MEETING_TYPE">
       <span>Meeting Types</span>
-      <strong>Manage Types</strong>
+      <strong>Manage Meeting Types</strong>
     </article>
   </div>
 </section>
