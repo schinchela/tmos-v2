@@ -336,6 +336,14 @@ const CLUB_MIGRATIONS = [
     `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
      VALUES ('015_meeting_awards', datetime('now'))`
   ]
+},
+  {
+  version: "016_planned_agenda_roles",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('016_planned_agenda_roles', datetime('now'))`
+  ]
 }
 ];
 
