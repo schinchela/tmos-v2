@@ -765,3 +765,86 @@ input[type="checkbox"] {
   display: grid;
   gap: 8px;
 }
+/* FINAL DARK FORM FIXES */
+
+/* Dropdown dark mode fix */
+.enterprise-form select,
+.auth-form select {
+  background-color: rgba(15, 23, 42, 0.92) !important;
+  color: #eef4ff !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+}
+
+.enterprise-form select:hover,
+.auth-form select:hover {
+  background-color: rgba(30, 41, 59, 0.96) !important;
+  color: #eef4ff !important;
+}
+
+.enterprise-form select:focus,
+.auth-form select:focus {
+  background-color: rgba(15, 23, 42, 0.98) !important;
+  color: #eef4ff !important;
+}
+
+/* Dropdown options */
+.enterprise-form select option,
+.auth-form select option {
+  background-color: #0f172a !important;
+  color: #eef4ff !important;
+}
+
+/* Checkbox visibility fix */
+.enterprise-form input[type="checkbox"],
+input[type="checkbox"] {
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  -moz-appearance: checkbox !important;
+
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+
+  padding: 0 !important;
+  margin: 0 !important;
+
+  accent-color: #00d4ff;
+  background: #0f172a !important;
+  border: 1px solid rgba(238, 244, 255, 0.7) !important;
+  border-radius: 4px !important;
+
+  cursor: pointer;
+}
+
+/* Checkbox row layout */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.checkbox-row {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 10px;
+
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.35);
+
+  color: #eef4ff !important;
+}
+
+.checkbox-row:hover {
+  background: rgba(30, 41, 59, 0.75);
+  border-color: rgba(0, 212, 255, 0.45);
+}
+
+.checkbox-row span {
+  color: #eef4ff !important;
+  font-weight: 600;
+}
