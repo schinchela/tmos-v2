@@ -1433,6 +1433,95 @@ async function updateMeeting(request, env, meetingId) {
   });
 }
 
+async function listMeetingParticipants(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_participants
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY display_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function addMeetingParticipant(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const body = await request.json();
+
+  const displayName = String(body.displayName || "").trim();
+  const participantType = String(body.participantType || "VISITOR").trim();
+
+  if (!displayName) {
+    return json({ success: false, error: "Display name is required" }, 400);
+  }
+
+  const participantId = id("participant");
+  const createdAt = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_participants (
+        id,
+        meeting_id,
+        participant_type,
+        participant_id,
+        display_name,
+        email,
+        attendance_status,
+        present_at,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(participantId)},
+        ${sqlValue(meetingId)},
+        ${sqlValue(participantType)},
+        ${sqlValue(body.participantId)},
+        ${sqlValue(displayName)},
+        ${sqlValue(body.email)},
+        ${sqlValue(body.attendanceStatus || "PRESENT")},
+        ${sqlValue(now())},
+        ${sqlValue(body.notes)},
+        ${sqlValue(createdAt)},
+        ${sqlValue(createdAt)}
+      )
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: participantId,
+      meetingId,
+      participantType,
+      displayName
+    }
+  }, 201);
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2180,7 +2269,9 @@ async function handleRequest(request, env) {
   if (meetingDetailsMatch && request.method === "GET") { return getMeetingDetails(request, env, meetingDetailsMatch[1]);}
   const updateMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)$/);
   if (updateMeetingMatch && request.method === "PUT") { return updateMeeting(request, env, updateMeetingMatch[1]);}
-
+  const meetingParticipantsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/participants$/);
+  if (meetingParticipantsMatch && request.method === "GET") {  return listMeetingParticipants(request, env, meetingParticipantsMatch[1]);}
+  if (meetingParticipantsMatch && request.method === "POST") {  return addMeetingParticipant(request, env, meetingParticipantsMatch[1]);}
 
                                                         
 }
