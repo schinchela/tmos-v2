@@ -111,6 +111,32 @@ export function renderClubSettings() {
     type="time"
   />
 </label>
+<label>
+  Default Meeting Mode
+  <select name="defaultMeetingMode" id="defaultMeetingMode">
+    <option value="PHYSICAL">Physical</option>
+    <option value="ONLINE">Online</option>
+    <option value="HYBRID">Hybrid</option>
+  </select>
+</label>
+
+<label>
+  Default Venue
+  <input
+    name="defaultVenue"
+    id="defaultVenue"
+    placeholder="Club meeting venue"
+  />
+</label>
+
+<label>
+  Default Online Link
+  <input
+    name="defaultOnlineLink"
+    id="defaultOnlineLink"
+    placeholder="Zoom / Google Meet link"
+  />
+</label>
         </div>
 
         <div class="module-panel">
@@ -278,17 +304,29 @@ async function loadSettings() {
 
     select.value = settings.officer_term_cycle || "YEARLY";
     generationCycle.value = settings.officer_term_cycle || "YEARLY";
-    document.getElementById("regularMeetingDay").value =
-  settings.regular_meeting_day || "";
 
-document.getElementById("regularMeetingTime").value =
-  settings.regular_meeting_time || "";
+    document.getElementById("regularMeetingDay").value =
+      settings.regular_meeting_day || "";
+
+    document.getElementById("regularMeetingTime").value =
+      settings.regular_meeting_time || "";
+
+    document.getElementById("defaultMeetingMode").value =
+      settings.default_meeting_mode || "PHYSICAL";
+
+    document.getElementById("defaultVenue").value =
+      settings.default_venue || "";
+
+    document.getElementById("defaultOnlineLink").value =
+      settings.default_online_link || "";
+
     updatePreview();
     updateGenerationPreview();
 
     message.textContent = "";
   } catch (error) {
-    message.textContent = `Failed to load settings: ${escapeHtml(error.message)}`;
+    message.textContent =
+      `Failed to load settings: ${escapeHtml(error.message)}`;
   }
 }
 
@@ -482,10 +520,13 @@ export async function initClubSettings() {
     try {
       await apiRequest("/api/club/settings", {
         method: "PUT",
-        body: {
+       body: {
   officerTermCycle: select.value,
   regularMeetingDay: document.getElementById("regularMeetingDay").value,
-  regularMeetingTime: document.getElementById("regularMeetingTime").value
+  regularMeetingTime: document.getElementById("regularMeetingTime").value,
+  defaultMeetingMode: document.getElementById("defaultMeetingMode").value,
+  defaultVenue: document.getElementById("defaultVenue").value,
+  defaultOnlineLink: document.getElementById("defaultOnlineLink").value
 }
       });
 
