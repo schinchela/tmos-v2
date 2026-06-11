@@ -394,9 +394,40 @@ function renderMember360(data) {
       </p>
 
       <div class="top-actions">
-        <button class="ghost-btn" data-route="club-members">Back to Members</button>
-        <button class="primary-btn" id="editMemberBtn" type="button">Edit Member</button>
-      </div>
+  <button class="ghost-btn" data-route="club-members">
+    Back to Members
+  </button>
+
+  <button
+    class="primary-btn"
+    id="editMemberBtn"
+    type="button"
+  >
+    Edit Member
+  </button>
+
+  ${
+    member.membership_status === "ARCHIVED"
+      ? `
+        <button
+          class="ghost-btn"
+          id="reinstateMemberBtn"
+          type="button"
+        >
+          Reinstate Member
+        </button>
+      `
+      : `
+        <button
+          class="ghost-btn"
+          id="archiveMemberBtn"
+          type="button"
+        >
+          Archive Member
+        </button>
+      `
+  }
+</div>
     </section>
 
     <section class="grid">
@@ -566,7 +597,9 @@ function bindMember360Events() {
   const cancelBtn = document.getElementById("cancelEditBtn");
   const editForm = document.getElementById("editMemberForm");
   const assignOfficerForm = document.getElementById("assignOfficerForm");
-
+  const archiveBtn =  document.getElementById("archiveMemberBtn");
+  const reinstateBtn =  document.getElementById("reinstateMemberBtn");
+  
   editBtn?.addEventListener("click", () => {
     editMode = true;
     document.getElementById("member360Content").innerHTML = renderMember360(member360Data);
@@ -654,6 +687,41 @@ function bindMember360Events() {
       button.textContent = "End Term";
     }
   });
+});
+  archiveBtn?.addEventListener("click", async () => {
+  if (
+    !confirm(
+      "Archive this member? All history will be preserved."
+    )
+  ) {
+    return;
+  }
+
+  await apiRequest(
+    `/api/members/${currentMemberId}/archive`,
+    {
+      method: "POST",
+      body: {
+        status: "ARCHIVED"
+      }
+    }
+  );
+
+  await loadMember360();
+});
+
+reinstateBtn?.addEventListener("click", async () => {
+  await apiRequest(
+    `/api/members/${currentMemberId}/archive`,
+    {
+      method: "POST",
+      body: {
+        status: "ACTIVE"
+      }
+    }
+  );
+
+  await loadMember360();
 });
 }
 
