@@ -2,6 +2,7 @@ import { apiRequest } from "../../assets/js/api.js";
 
 let membersCache = [];
 let filteredMembers = [];
+
 const PATHWAYS = [
   "Dynamic Leadership",
   "Effective Coaching",
@@ -15,6 +16,15 @@ const PATHWAYS = [
   "Team Collaboration",
   "Visionary Communication"
 ];
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
 function pathwayOptions(selected = "") {
   return `
@@ -40,24 +50,25 @@ function pathwayLevelOptions(selected = 0) {
     <option value="6" ${current === "6" ? "selected" : ""}>Completed</option>
   `;
 }
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString();
 }
 
+function formatPathwayLevel(value) {
+  const level = Number(value || 0);
+
+  if (level === 0) return "Not Started";
+  if (level === 6) return "Completed";
+
+  return `Level ${level}`;
+}
+
 function statusBadge(status) {
   const value = String(status || "ACTIVE").toUpperCase();
 
-  if (["INACTIVE", "SUSPENDED", "TERMINATED"].includes(value)) {
+  if (["ARCHIVED", "INACTIVE", "SUSPENDED", "TERMINATED"].includes(value)) {
     return `<span class="badge danger">${escapeHtml(value)}</span>`;
   }
 
@@ -81,7 +92,11 @@ function renderMemberRows(members) {
   }
 
   return members.map((member) => `
-    <tr class="clickable-row" data-member-id="${escapeHtml(member.id)}">
+    <tr
+      class="clickable-row"
+      data-member-id="${escapeHtml(member.id)}"
+      style="cursor:pointer;"
+    >
       <td>
         <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong><br>
         <small>${escapeHtml(member.email || "-")}</small>
@@ -92,7 +107,7 @@ function renderMemberRows(members) {
       <td>${escapeHtml(member.membership_type || "-")}</td>
       <td>
         ${escapeHtml(member.pathway_name || "-")}<br>
-        <small>Level ${escapeHtml(member.pathway_level ?? 0)}</small>
+        <small>${escapeHtml(formatPathwayLevel(member.pathway_level))}</small>
       </td>
       <td>${escapeHtml(member.active_officer_role || "-")}</td>
       <td>${escapeHtml(formatDate(member.join_date))}</td>
@@ -111,6 +126,7 @@ function renderStats() {
   document.getElementById("membersOfficers").textContent = officers;
   document.getElementById("membersPathways").textContent = pathways;
 }
+
 export function renderClubMembers() {
   return `
     <section class="hero">
@@ -201,6 +217,7 @@ export function renderClubMembers() {
               <option value="PROSPECT">Prospect</option>
               <option value="ON_HOLD">On Hold</option>
               <option value="TERMINATED">Terminated</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
           </label>
 
@@ -217,14 +234,14 @@ export function renderClubMembers() {
           <label>
             Pathway
             <select name="pathwayName">
-            ${pathwayOptions(member.pathway_name)}
+              ${pathwayOptions()}
             </select>
           </label>
 
           <label>
             Pathway Level
             <select name="pathwayLevel">
-            ${pathwayLevelOptions()}
+              ${pathwayLevelOptions()}
             </select>
           </label>
 
@@ -252,7 +269,8 @@ export function renderClubMembers() {
         <p class="form-message" id="memberFormMessage"></p>
       </form>
     </section>
-        <section class="module-panel">
+
+    <section class="module-panel">
       <div class="panel-header">
         <h3>Member Directory</h3>
         <div class="top-actions">
@@ -290,6 +308,7 @@ export function renderClubMembers() {
 
 async function loadMembers() {
   const table = document.getElementById("membersTable");
+  if (!table) return;
 
   table.innerHTML = `
     <tr>
@@ -318,6 +337,8 @@ function applySearch() {
   const table = document.getElementById("membersTable");
   const query = String(searchInput?.value || "").toLowerCase().trim();
 
+  if (!table) return;
+
   if (!query) {
     filteredMembers = [...membersCache];
   } else {
@@ -342,6 +363,22 @@ function applySearch() {
   table.innerHTML = renderMemberRows(filteredMembers);
 }
 
+function bindMemberRowNavigation() {
+  const table = document.getElementById("membersTable");
+  if (!table) return;
+
+  table.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-member-id]");
+    if (!row) return;
+
+    window.TMOS_SELECTED_MEMBER_ID = row.dataset.memberId;
+
+    import("../../assets/js/router.js").then(({ navigate }) => {
+      navigate("club-member-details");
+    });
+  });
+}
+
 export async function initClubMembers() {
   const form = document.getElementById("createMemberForm");
   const message = document.getElementById("memberFormMessage");
@@ -351,16 +388,8 @@ export async function initClubMembers() {
 
   refreshBtn?.addEventListener("click", loadMembers);
   searchInput?.addEventListener("input", applySearch);
-  document.addEventListener("click", (event) => {
-  const row = event.target.closest("[data-member-id]");
-  if (!row) return;
+  bindMemberRowNavigation();
 
-  window.TMOS_SELECTED_MEMBER_ID = row.dataset.memberId;
-
-  import("../../assets/js/router.js").then(({ navigate }) => {
-    navigate("club-member-details");
-  });
-});
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
