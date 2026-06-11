@@ -7,6 +7,8 @@ let attendanceSources = {
   members: [],
   guests: []
 };
+let meetingRoleConfig = [];
+
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -160,6 +162,13 @@ function renderPersonOptions(items) {
     `).join("")}
   `;
 }
+
+function activeMeetingRoles() {
+  return meetingRoleConfig.filter((role) => Number(role.is_active) === 1);
+}
+
+
+
 function renderParticipantsPanel(participants) {
   return `
     <section class="module-panel">
@@ -250,6 +259,107 @@ function renderParticipantsPanel(participants) {
   `;
 }
 
+function renderAgendaRolesPanel(roles) {
+  const configRoles = activeMeetingRoles();
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Agenda & Roles</h3>
+        <span class="badge">${roles.length} Planned</span>
+      </div>
+
+      <form class="enterprise-form" id="addAgendaRoleForm">
+        <div class="form-grid">
+          <label>
+            Role
+            <select id="agendaRoleSelect" required>
+              <option value="">Select role</option>
+              ${configRoles.map((role) => `
+                <option
+                  value="${escapeHtml(role.config_key)}"
+                  data-name="${escapeHtml(role.config_name)}"
+                >
+                  ${escapeHtml(role.config_name)}
+                </option>
+              `).join("")}
+            </select>
+          </label>
+
+          <label>
+            Assign From
+            <select id="agendaRoleSourceType">
+              <option value="">Leave Vacant</option>
+              <option value="MEMBER">Member</option>
+              <option value="GUEST">Guest</option>
+              <option value="VISITOR">Manual Visitor</option>
+            </select>
+          </label>
+
+          <label id="agendaMemberWrap" style="display:none;">
+            Member
+            <select id="agendaMemberSelect">
+              ${renderPersonOptions(attendanceSources.members)}
+            </select>
+          </label>
+
+          <label id="agendaGuestWrap" style="display:none;">
+            Guest
+            <select id="agendaGuestSelect">
+              ${renderPersonOptions(attendanceSources.guests)}
+            </select>
+          </label>
+
+          <label id="agendaVisitorWrap" style="display:none;">
+            Visitor Name
+            <input id="agendaVisitorName" placeholder="Visitor name" />
+          </label>
+
+          <label>
+            Notes
+            <input id="agendaRoleNotes" placeholder="Optional notes" />
+          </label>
+        </div>
+
+        <button class="primary-btn" id="addAgendaRoleBtn" type="submit">
+          Add Planned Role
+        </button>
+
+        <p class="form-message" id="agendaRoleMessage"></p>
+      </form>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Planned Person</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            roles.length
+              ? roles.map((role) => `
+                <tr>
+                  <td><strong>${escapeHtml(role.role_name)}</strong></td>
+                  <td>${escapeHtml(role.planned_display_name || "Vacant")}</td>
+                  <td>${escapeHtml(role.assignment_status || "PLANNED")}</td>
+                </tr>
+              `).join("")
+              : `
+                <tr>
+                  <td colspan="3">
+                    No agenda roles planned yet.
+                  </td>
+                </tr>
+              `
+          }
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -279,10 +389,7 @@ function renderMeetingCommandCenter(data) {
 
     ${renderParticipantsPanel(data.participants || [])}
     
-    ${emptyPanel(
-      "Agenda & Roles",
-      "Assign Toastmaster, GE, Timer, Ah Counter, Grammarian, Table Topics Master and custom roles from present participants."
-    )}
+    ${renderAgendaRolesPanel(data.roles || [])}
 
     ${emptyPanel(
       "Speeches & Evaluations",
@@ -328,9 +435,19 @@ async function loadAttendanceSources() {
   }
 }
 
+async function loadMeetingRoleConfig() {
+  try {
+    const response = await apiRequest("/api/configuration/MEETING_ROLE");
+    meetingRoleConfig = response.data || [];
+  } catch (_) {
+    meetingRoleConfig = [];
+  }
+}
+
 async function loadMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
   await loadAttendanceSources();
+  await loadMeetingRoleConfig();
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
 
@@ -353,7 +470,90 @@ function bindMeetingCommandCenterEvents() {
   const guestSelect = document.getElementById("guestParticipantSelect");
   const visitorName = document.getElementById("visitorDisplayName");
   const emailInput = document.getElementById("participantEmail");
+  
+const agendaRoleForm = document.getElementById("addAgendaRoleForm");
+const agendaRoleSourceType = document.getElementById("agendaRoleSourceType");
+const agendaMemberWrap = document.getElementById("agendaMemberWrap");
+const agendaGuestWrap = document.getElementById("agendaGuestWrap");
+const agendaVisitorWrap = document.getElementById("agendaVisitorWrap");
 
+function updateAgendaSourceUI() {
+  const value = agendaRoleSourceType?.value || "";
+
+  if (!agendaMemberWrap || !agendaGuestWrap || !agendaVisitorWrap) return;
+
+  agendaMemberWrap.style.display = value === "MEMBER" ? "" : "none";
+  agendaGuestWrap.style.display = value === "GUEST" ? "" : "none";
+  agendaVisitorWrap.style.display = value === "VISITOR" ? "" : "none";
+}
+
+agendaRoleSourceType?.addEventListener("change", updateAgendaSourceUI);
+updateAgendaSourceUI();
+
+agendaRoleForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const message = document.getElementById("agendaRoleMessage");
+  const button = document.getElementById("addAgendaRoleBtn");
+  const roleSelect = document.getElementById("agendaRoleSelect");
+
+  const selectedRole = roleSelect.selectedOptions?.[0];
+  const sourceType = agendaRoleSourceType.value;
+
+  let plannedParticipantId = "";
+  let plannedDisplayName = "";
+  let plannedEmail = "";
+
+  if (sourceType === "MEMBER") {
+    const selected = document.getElementById("agendaMemberSelect").selectedOptions?.[0];
+    plannedParticipantId = document.getElementById("agendaMemberSelect").value;
+    plannedDisplayName = selected?.dataset.name || "";
+    plannedEmail = selected?.dataset.email || "";
+  }
+
+  if (sourceType === "GUEST") {
+    const selected = document.getElementById("agendaGuestSelect").selectedOptions?.[0];
+    plannedParticipantId = document.getElementById("agendaGuestSelect").value;
+    plannedDisplayName = selected?.dataset.name || "";
+    plannedEmail = selected?.dataset.email || "";
+  }
+
+  if (sourceType === "VISITOR") {
+    plannedDisplayName = document.getElementById("agendaVisitorName").value;
+  }
+
+  if (!roleSelect.value) {
+    message.textContent = "Please select a role.";
+    return;
+  }
+
+  message.textContent = "Adding planned role...";
+  button.disabled = true;
+
+  try {
+    await apiRequest(`/api/meetings/${currentMeetingId}/agenda-roles`, {
+      method: "POST",
+      body: {
+        roleCode: roleSelect.value,
+        roleName: selectedRole?.dataset.name || roleSelect.value,
+        assignmentStatus: plannedDisplayName ? "PLANNED" : "UNASSIGNED",
+        sequenceOrder: 0,
+        plannedParticipantType: sourceType || "",
+        plannedParticipantId,
+        plannedDisplayName,
+        plannedEmail,
+        notes: document.getElementById("agendaRoleNotes").value
+      }
+    });
+
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+    button.disabled = false;
+  }
+});
+  
+  
   function updateParticipantSourceUI() {
     const value = sourceType?.value || "MEMBER";
 
