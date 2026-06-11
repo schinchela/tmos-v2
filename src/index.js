@@ -7,6 +7,8 @@ const CORS_HEADERS = {
 
 const SESSION_DAYS = 7;
 
+const FRONTEND_URL = "https://tmos.rowepal.com";
+
 const CLUB_MIGRATIONS = [
   {
     version: "001_core",
@@ -3240,12 +3242,12 @@ while (true) {
       )
     `
   );
-
+ const voteUrl =  `${FRONTEND_URL}/vote/?slug=${token}`;
   return json({
     success: true,
     data: {
       id: sessionId,
-      publicToken: token,
+      publicToken: token, voteUrl,
       status: "OPEN"
     }
   });
