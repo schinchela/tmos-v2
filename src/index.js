@@ -407,33 +407,170 @@ const CLUB_MIGRATIONS = [
     `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
      VALUES ('017_club_configuration', datetime('now'))`
   ]
-},
-  {
-  version: "018_planned_agenda_speeches",
-  sql: [
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_type TEXT`,
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_id TEXT`,
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_name TEXT`,
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_email TEXT`,
-
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_type TEXT`,
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_id TEXT`,
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_name TEXT`,
-    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_email TEXT`,
-
-    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-     VALUES ('018_planned_agenda_speeches', datetime('now'))`
-  ]
-},
-  {
-  version: "019_member_recognition_suffix",
-  sql: [
-    `ALTER TABLE members ADD COLUMN recognition_suffix TEXT`,
-    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
-     VALUES ('019_member_recognition_suffix', datetime('now'))`
-  ]
 }
 ];
+
+async function getTableColumns(env, databaseId, tableName) {
+  const result = await executeClubQuery(
+    env,
+    databaseId,
+    `PRAGMA table_info(${tableName})`
+  );
+
+  return (
+    result?.[0]?.results ||
+    result?.results ||
+    []
+  );
+}
+
+async function ensureColumn(
+  env,
+  databaseId,
+  tableName,
+  columnName,
+  columnDefinition
+) {
+  const columns = await getTableColumns(
+    env,
+    databaseId,
+    tableName
+  );
+
+  const exists = columns.some(
+    (column) => column.name === columnName
+  );
+
+  if (exists) {
+    return false;
+  }
+
+  await executeClubStatement(
+    env,
+    databaseId,
+    `
+      ALTER TABLE ${tableName}
+      ADD COLUMN ${columnName}
+      ${columnDefinition}
+    `
+  );
+
+  return true;
+}
+
+async function ensureIndex(
+  env,
+  databaseId,
+  indexName,
+  tableName,
+  columns
+) {
+  await executeClubStatement(
+    env,
+    databaseId,
+    `
+      CREATE INDEX IF NOT EXISTS
+      ${indexName}
+      ON ${tableName}
+      (${columns})
+    `
+  );
+}
+
+async function ensureTable(
+  env,
+  databaseId,
+  createSql
+) {
+  await executeClubStatement(
+    env,
+    databaseId,
+    createSql
+  );
+}
+async function applyMigration018(
+  env,
+  databaseId
+) {
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_speaker_type",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_speaker_id",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_speaker_name",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_speaker_email",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_evaluator_type",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_evaluator_id",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_evaluator_name",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_speeches",
+    "planned_evaluator_email",
+    "TEXT"
+  );
+}
+
+async function applyMigration019(
+  env,
+  databaseId
+) {
+  await ensureColumn(
+    env,
+    databaseId,
+    "members",
+    "recognition_suffix",
+    "TEXT"
+  );
+}
+
+
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -2399,9 +2536,56 @@ async function runClubMigrations(env, databaseId) {
   const applied = [];
 
   for (const migration of CLUB_MIGRATIONS) {
-    await runCloudflareD1Batch(env, databaseId, migration.sql);
+    await runCloudflareD1Batch(
+      env,
+      databaseId,
+      migration.sql
+    );
+
     applied.push(migration.version);
   }
+
+  // Idempotent upgrade migrations
+  await applyMigration018(
+    env,
+    databaseId
+  );
+
+  await applyMigration019(
+    env,
+    databaseId
+  );
+
+  await executeClubStatement(
+    env,
+    databaseId,
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '018_planned_agenda_speeches',
+        datetime('now')
+      )
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    databaseId,
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '019_member_recognition_suffix',
+        datetime('now')
+      )
+    `
+  );
+
+  applied.push("018_planned_agenda_speeches");
+  applied.push("019_member_recognition_suffix");
 
   return applied;
 }
