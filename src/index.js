@@ -344,6 +344,69 @@ const CLUB_MIGRATIONS = [
     `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
      VALUES ('016_planned_agenda_roles', datetime('now'))`
   ]
+},
+  {
+  version: "017_club_configuration",
+  sql: [
+    `CREATE TABLE IF NOT EXISTS club_configuration (
+      id TEXT PRIMARY KEY,
+      config_group TEXT NOT NULL,
+      config_type TEXT NOT NULL,
+      config_key TEXT NOT NULL,
+      config_name TEXT NOT NULL,
+      config_value_json TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS idx_club_configuration_group
+     ON club_configuration(config_group)`,
+
+    `CREATE INDEX IF NOT EXISTS idx_club_configuration_type
+     ON club_configuration(config_type)`,
+
+    `CREATE INDEX IF NOT EXISTS idx_club_configuration_active
+     ON club_configuration(is_active)`,
+
+    `INSERT OR IGNORE INTO club_configuration (
+      id, config_group, config_type, config_key, config_name,
+      config_value_json, is_active, sort_order, created_at, updated_at
+    ) VALUES
+      ('cfg_role_toastmaster', 'MEETINGS', 'MEETING_ROLE', 'TOASTMASTER', 'Toastmaster', '{}', 1, 10, datetime('now'), datetime('now')),
+      ('cfg_role_ge', 'MEETINGS', 'MEETING_ROLE', 'GENERAL_EVALUATOR', 'General Evaluator', '{}', 1, 20, datetime('now'), datetime('now')),
+      ('cfg_role_timer', 'MEETINGS', 'MEETING_ROLE', 'TIMER', 'Timer', '{}', 1, 30, datetime('now'), datetime('now')),
+      ('cfg_role_ah_counter', 'MEETINGS', 'MEETING_ROLE', 'AH_COUNTER', 'Ah Counter', '{}', 1, 40, datetime('now'), datetime('now')),
+      ('cfg_role_grammarian', 'MEETINGS', 'MEETING_ROLE', 'GRAMMARIAN', 'Grammarian', '{}', 1, 50, datetime('now'), datetime('now')),
+      ('cfg_role_ttm', 'MEETINGS', 'MEETING_ROLE', 'TABLE_TOPICS_MASTER', 'Table Topics Master', '{}', 1, 60, datetime('now'), datetime('now')),
+      ('cfg_role_quiz_master', 'MEETINGS', 'MEETING_ROLE', 'QUIZ_MASTER', 'Quiz Master', '{}', 1, 70, datetime('now'), datetime('now')),
+      ('cfg_role_invocation', 'MEETINGS', 'MEETING_ROLE', 'INVOCATION', 'Invocation', '{}', 1, 80, datetime('now'), datetime('now')),
+      ('cfg_role_saa', 'MEETINGS', 'MEETING_ROLE', 'SERGEANT_AT_ARMS', 'Sergeant At Arms', '{}', 1, 90, datetime('now'), datetime('now')),
+      ('cfg_role_tech_master', 'MEETINGS', 'MEETING_ROLE', 'TECH_MASTER', 'Tech Master', '{}', 1, 100, datetime('now'), datetime('now'))`,
+
+    `INSERT OR IGNORE INTO club_configuration (
+      id, config_group, config_type, config_key, config_name,
+      config_value_json, is_active, sort_order, created_at, updated_at
+    ) VALUES
+      ('cfg_award_best_speaker', 'MEETINGS', 'MEETING_AWARD', 'BEST_SPEAKER', 'Best Speaker', '{}', 1, 10, datetime('now'), datetime('now')),
+      ('cfg_award_best_evaluator', 'MEETINGS', 'MEETING_AWARD', 'BEST_EVALUATOR', 'Best Evaluator', '{}', 1, 20, datetime('now'), datetime('now')),
+      ('cfg_award_best_table_topics', 'MEETINGS', 'MEETING_AWARD', 'BEST_TABLE_TOPICS', 'Best Table Topics', '{}', 1, 30, datetime('now'), datetime('now'))`,
+
+    `INSERT OR IGNORE INTO club_configuration (
+      id, config_group, config_type, config_key, config_name,
+      config_value_json, is_active, sort_order, created_at, updated_at
+    ) VALUES
+      ('cfg_meeting_type_regular', 'MEETINGS', 'MEETING_TYPE', 'REGULAR', 'Regular Club Meeting', '{}', 1, 10, datetime('now'), datetime('now')),
+      ('cfg_meeting_type_joint', 'MEETINGS', 'MEETING_TYPE', 'JOINT', 'Joint Meeting', '{}', 1, 20, datetime('now'), datetime('now')),
+      ('cfg_meeting_type_contest', 'MEETINGS', 'MEETING_TYPE', 'CONTEST', 'Contest', '{}', 1, 30, datetime('now'), datetime('now')),
+      ('cfg_meeting_type_workshop', 'MEETINGS', 'MEETING_TYPE', 'WORKSHOP', 'Workshop', '{}', 1, 40, datetime('now'), datetime('now')),
+      ('cfg_meeting_type_officer', 'MEETINGS', 'MEETING_TYPE', 'OFFICER', 'Officer Meeting', '{}', 1, 50, datetime('now'), datetime('now')),
+      ('cfg_meeting_type_special', 'MEETINGS', 'MEETING_TYPE', 'SPECIAL', 'Special Session', '{}', 1, 60, datetime('now'), datetime('now'))`,
+
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('017_club_configuration', datetime('now'))`
+  ]
 }
 ];
 
