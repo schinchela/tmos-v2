@@ -3862,6 +3862,33 @@ async function closeMeeting(request, env, meetingId) {
   });
 }
 
+async function reopenMeeting(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meetings
+      SET
+        status = 'IN_PROGRESS',
+        updated_at = ${sqlValue(timestamp)}
+      WHERE id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      meetingId,
+      status: "IN_PROGRESS"
+    }
+  });
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -4765,7 +4792,10 @@ async function handleRequest(request, env) {
   if (meetingAwardsMatch &&  request.method === "GET") { return getMeetingAwards(request,env,meetingAwardsMatch[1]);}
   const closeMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/close$/);
   if (closeMeetingMatch && request.method === "POST") { return closeMeeting(request,env,closeMeetingMatch[1]);}
-  
+  const reopenMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/reopen$/);
+  if (reopenMeetingMatch && request.method === "POST") {return reopenMeeting(request,env,reopenMeetingMatch[1]);}
+
+
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
