@@ -1,4 +1,5 @@
 import { apiRequest } from "../../assets/js/api.js";
+import { dateInputValue } from "../../src/utils/date.js";
 
 let meetingsCache = [];
 let clubSettings = {};
@@ -16,26 +17,15 @@ function formatDate(value) {
   if (!value) return "-";
 
   const [year, month, day] = String(value).slice(0, 10).split("-");
-
   if (!year || !month || !day) return "-";
 
-  return new Date(
-    Number(year),
-    Number(month) - 1,
-    Number(day)
-  ).toLocaleDateString("en-IN", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  });
-}
-function toDateInputValue(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
+  return new Date(Number(year), Number(month) - 1, Number(day))
+    .toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
 }
 
 function getNextRegularMeetingDates(dayValue, count = 4) {
@@ -72,6 +62,19 @@ function statusBadge(status) {
   return `<span class="badge">${escapeHtml(value)}</span>`;
 }
 
+function renderRegularDateOptions() {
+  const dates = getNextRegularMeetingDates(clubSettings.regular_meeting_day, 4);
+
+  if (!dates.length) {
+    return `<option value="">Set regular meeting day/time in Club Settings first</option>`;
+  }
+
+  return dates.map((date) => {
+    const value = dateInputValue(date);
+    return `<option value="${value}">${formatDate(value)}</option>`;
+  }).join("");
+}
+
 function renderMeetingRows(meetings) {
   if (!meetings.length) {
     return `
@@ -82,11 +85,7 @@ function renderMeetingRows(meetings) {
   }
 
   return meetings.map((meeting) => `
-    <tr
-      class="clickable-row"
-      data-meeting-id="${escapeHtml(meeting.id)}"
-      style="cursor:pointer;"
-    >
+    <tr class="clickable-row" data-meeting-id="${escapeHtml(meeting.id)}" style="cursor:pointer;">
       <td>
         <strong>${escapeHtml(meeting.meeting_title)}</strong><br>
         <small>${escapeHtml(meeting.meeting_theme || "-")}</small>
@@ -102,33 +101,13 @@ function renderMeetingRows(meetings) {
 }
 
 function renderStats() {
-  const total = meetingsCache.length;
-  const draft = meetingsCache.filter((m) => m.status === "DRAFT").length;
-  const open = meetingsCache.filter((m) => ["OPEN", "IN_PROGRESS"].includes(m.status)).length;
-  const completed = meetingsCache.filter((m) => m.status === "COMPLETED").length;
-
-  document.getElementById("meetingsTotal").textContent = total;
-  document.getElementById("meetingsDraft").textContent = draft;
-  document.getElementById("meetingsOpen").textContent = open;
-  document.getElementById("meetingsCompleted").textContent = completed;
-}
-
-function renderRegularDateOptions() {
-  const dates = getNextRegularMeetingDates(clubSettings.regular_meeting_day, 4);
-
-  if (!dates.length) {
-    return `
-      <option value="">
-        Set regular meeting day/time in Club Settings first
-      </option>
-    `;
-  }
-
-  return dates.map((date) => `
-    <option value="${toDateInputValue(date)}">
-      ${formatDate(toDateInputValue(date))}
-    </option>
-  `).join("");
+  document.getElementById("meetingsTotal").textContent = meetingsCache.length;
+  document.getElementById("meetingsDraft").textContent =
+    meetingsCache.filter((m) => m.status === "DRAFT").length;
+  document.getElementById("meetingsOpen").textContent =
+    meetingsCache.filter((m) => ["OPEN", "IN_PROGRESS"].includes(m.status)).length;
+  document.getElementById("meetingsCompleted").textContent =
+    meetingsCache.filter((m) => m.status === "COMPLETED").length;
 }
 
 export function renderClubMeetings() {
@@ -136,32 +115,14 @@ export function renderClubMeetings() {
     <section class="hero">
       <p class="eyebrow">Meeting Command Center</p>
       <h3>Meetings</h3>
-      <p>
-        Create regular meetings from club settings, or create custom/historical meetings
-        by choosing date and time manually.
-      </p>
+      <p>Create regular meetings from club settings, or create custom/historical meetings manually.</p>
     </section>
 
     <section class="grid">
-      <article class="card">
-        <span>Total Meetings</span>
-        <strong id="meetingsTotal">...</strong>
-      </article>
-
-      <article class="card">
-        <span>Draft</span>
-        <strong id="meetingsDraft">...</strong>
-      </article>
-
-      <article class="card">
-        <span>Open / In Progress</span>
-        <strong id="meetingsOpen">...</strong>
-      </article>
-
-      <article class="card">
-        <span>Completed</span>
-        <strong id="meetingsCompleted">...</strong>
-      </article>
+      <article class="card"><span>Total Meetings</span><strong id="meetingsTotal">...</strong></article>
+      <article class="card"><span>Draft</span><strong id="meetingsDraft">...</strong></article>
+      <article class="card"><span>Open / In Progress</span><strong id="meetingsOpen">...</strong></article>
+      <article class="card"><span>Completed</span><strong id="meetingsCompleted">...</strong></article>
     </section>
 
     <section class="module-panel">
@@ -181,6 +142,15 @@ export function renderClubMeetings() {
           </label>
 
           <label>
+            Meeting Mode
+            <select id="meetingMode">
+              <option value="PHYSICAL">Physical</option>
+              <option value="ONLINE">Online</option>
+              <option value="HYBRID">Hybrid</option>
+            </select>
+          </label>
+
+          <label>
             Meeting Type
             <select name="meetingType" id="meetingType">
               <option value="REGULAR">Regular Club Meeting</option>
@@ -194,12 +164,7 @@ export function renderClubMeetings() {
 
           <label>
             Meeting Title
-            <input
-              name="meetingTitle"
-              id="meetingTitle"
-              placeholder="Regular Club Meeting"
-              required
-            />
+            <input name="meetingTitle" id="meetingTitle" placeholder="Regular Club Meeting" required />
           </label>
 
           <label id="regularDateWrap">
@@ -224,19 +189,19 @@ export function renderClubMeetings() {
             <input name="endTime" id="meetingEndTime" type="time" />
           </label>
 
+          <label id="venueWrap">
+            Venue
+            <input name="venue" id="meetingVenue" placeholder="Venue / physical location" />
+          </label>
+
+          <label id="onlineLinkWrap" style="display:none;">
+            Online Link
+            <input name="onlineLink" id="meetingOnlineLink" placeholder="Zoom / Google Meet link" />
+          </label>
+
           <label>
             Theme
             <input name="meetingTheme" placeholder="Theme of the meeting" />
-          </label>
-
-          <label>
-            Venue
-            <input name="venue" placeholder="Venue / physical location" />
-          </label>
-
-          <label>
-            Online Link
-            <input name="onlineLink" placeholder="Zoom / Google Meet link" />
           </label>
 
           <label>
@@ -256,10 +221,7 @@ export function renderClubMeetings() {
           </label>
         </div>
 
-        <button class="primary-btn" id="createMeetingBtn" type="submit">
-          Create Meeting
-        </button>
-
+        <button class="primary-btn" id="createMeetingBtn" type="submit">Create Meeting</button>
         <p class="form-message" id="meetingFormMessage"></p>
       </form>
     </section>
@@ -283,9 +245,7 @@ export function renderClubMeetings() {
           </tr>
         </thead>
         <tbody id="meetingsTable">
-          <tr>
-            <td colspan="7">Loading meetings...</td>
-          </tr>
+          <tr><td colspan="7">Loading meetings...</td></tr>
         </tbody>
       </table>
     </section>
@@ -305,11 +265,7 @@ async function loadMeetings() {
   const table = document.getElementById("meetingsTable");
   if (!table) return;
 
-  table.innerHTML = `
-    <tr>
-      <td colspan="7">Loading meetings...</td>
-    </tr>
-  `;
+  table.innerHTML = `<tr><td colspan="7">Loading meetings...</td></tr>`;
 
   try {
     const response = await apiRequest("/api/meetings");
@@ -341,6 +297,32 @@ function bindMeetingNavigation() {
   });
 }
 
+function updateLocationMode() {
+  const mode = document.getElementById("meetingMode")?.value || "PHYSICAL";
+  const venueWrap = document.getElementById("venueWrap");
+  const onlineLinkWrap = document.getElementById("onlineLinkWrap");
+  const venueInput = document.getElementById("meetingVenue");
+  const onlineLinkInput = document.getElementById("meetingOnlineLink");
+
+  venueWrap.style.display = ["PHYSICAL", "HYBRID"].includes(mode) ? "" : "none";
+  onlineLinkWrap.style.display = ["ONLINE", "HYBRID"].includes(mode) ? "" : "none";
+
+  if (mode === "PHYSICAL") {
+    venueInput.value = clubSettings.default_venue || venueInput.value || "";
+    onlineLinkInput.value = "";
+  }
+
+  if (mode === "ONLINE") {
+    venueInput.value = "";
+    onlineLinkInput.value = clubSettings.default_online_link || onlineLinkInput.value || "";
+  }
+
+  if (mode === "HYBRID") {
+    venueInput.value = clubSettings.default_venue || venueInput.value || "";
+    onlineLinkInput.value = clubSettings.default_online_link || onlineLinkInput.value || "";
+  }
+}
+
 function updateMeetingCreationMode() {
   const mode = document.getElementById("meetingCreationMode")?.value || "REGULAR";
   const meetingType = document.getElementById("meetingType");
@@ -348,6 +330,7 @@ function updateMeetingCreationMode() {
   const regularDateWrap = document.getElementById("regularDateWrap");
   const customDateWrap = document.getElementById("customDateWrap");
   const startTimeInput = document.getElementById("meetingStartTime");
+  const meetingMode = document.getElementById("meetingMode");
 
   if (mode === "REGULAR") {
     regularDateWrap.style.display = "";
@@ -355,10 +338,13 @@ function updateMeetingCreationMode() {
     meetingType.value = "REGULAR";
     titleInput.value = titleInput.value || "Regular Club Meeting";
     startTimeInput.value = clubSettings.regular_meeting_time || startTimeInput.value || "";
+    meetingMode.value = clubSettings.default_meeting_mode || "PHYSICAL";
   } else {
     regularDateWrap.style.display = "none";
     customDateWrap.style.display = "";
   }
+
+  updateLocationMode();
 }
 
 export async function initClubMeetings() {
@@ -371,9 +357,11 @@ export async function initClubMeetings() {
   const button = document.getElementById("createMeetingBtn");
   const refreshBtn = document.getElementById("refreshMeetingsBtn");
   const modeSelect = document.getElementById("meetingCreationMode");
+  const meetingMode = document.getElementById("meetingMode");
 
   refreshBtn?.addEventListener("click", loadMeetings);
   modeSelect?.addEventListener("change", updateMeetingCreationMode);
+  meetingMode?.addEventListener("change", updateLocationMode);
 
   bindMeetingNavigation();
   updateMeetingCreationMode();
@@ -382,6 +370,7 @@ export async function initClubMeetings() {
     event.preventDefault();
 
     const mode = document.getElementById("meetingCreationMode").value;
+    const locationMode = document.getElementById("meetingMode").value;
     const payload = Object.fromEntries(new FormData(form).entries());
 
     if (mode === "REGULAR") {
@@ -390,6 +379,21 @@ export async function initClubMeetings() {
       payload.meetingType = "REGULAR";
     } else {
       payload.meetingDate = document.getElementById("customMeetingDate").value;
+    }
+
+    if (locationMode === "PHYSICAL") {
+      payload.venue = document.getElementById("meetingVenue").value;
+      payload.onlineLink = "";
+    }
+
+    if (locationMode === "ONLINE") {
+      payload.venue = "";
+      payload.onlineLink = document.getElementById("meetingOnlineLink").value;
+    }
+
+    if (locationMode === "HYBRID") {
+      payload.venue = document.getElementById("meetingVenue").value;
+      payload.onlineLink = document.getElementById("meetingOnlineLink").value;
     }
 
     if (!payload.meetingDate) {
