@@ -3705,10 +3705,140 @@ async function closeMeeting(request, env, meetingId) {
     meetingResult?.results?.[0];
 
   if (!meeting) {
+    return json({ success: false, error: "Meeting not found" }, 404);
+  }
+
+  if (meeting.status === "COMPLETED") {
     return json({
-      success: false,
-      error: "Meeting not found"
-    }, 404);
+      success: true,
+      data: { meetingId, status: "COMPLETED" }
+    });
+  }
+
+  const participantsResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_participants
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  const participants =
+    participantsResult?.[0]?.results ||
+    participantsResult?.results ||
+    [];
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM member_attendance
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  for (const participant of participants) {
+    if (participant.participant_type !== "MEMBER" || !participant.participant_id) {
+      continue;
+    }
+
+    await executeClubStatement(
+      env,
+      auth.user.club_id,
+      `
+        INSERT INTO member_attendance (
+          id,
+          member_id,
+          meeting_id,
+          meeting_date,
+          attendance_status,
+          role_taken,
+          notes,
+          created_at
+        )
+        VALUES (
+          ${sqlValue(id("attendance"))},
+          ${sqlValue(participant.participant_id)},
+          ${sqlValue(meetingId)},
+          ${sqlValue(meeting.meeting_date)},
+          ${sqlValue(participant.attendance_status || "PRESENT")},
+          NULL,
+          ${sqlValue(participant.notes)},
+          ${sqlValue(timestamp)}
+        )
+      `
+    );
+  }
+
+  const speechesResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_speeches
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  const speeches =
+    speechesResult?.[0]?.results ||
+    speechesResult?.results ||
+    [];
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM member_speeches
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  for (const speech of speeches) {
+    if (speech.planned_speaker_type !== "MEMBER" || !speech.planned_speaker_id) {
+      continue;
+    }
+
+    await executeClubStatement(
+      env,
+      auth.user.club_id,
+      `
+        INSERT INTO member_speeches (
+          id,
+          member_id,
+          meeting_id,
+          speech_title,
+          pathway_name,
+          project_name,
+          level_number,
+          speech_date,
+          evaluator_member_id,
+          duration_seconds,
+          status,
+          notes,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${sqlValue(id("speech"))},
+          ${sqlValue(speech.planned_speaker_id)},
+          ${sqlValue(meetingId)},
+          ${sqlValue(speech.speech_title)},
+          ${sqlValue(speech.pathway_name)},
+          ${sqlValue(speech.project_name)},
+          ${Number(speech.level_number || 0)},
+          ${sqlValue(meeting.meeting_date)},
+          NULL,
+          ${Number(speech.actual_duration_seconds || 0)},
+          'COMPLETED',
+          ${sqlValue(speech.notes)},
+          ${sqlValue(timestamp)},
+          ${sqlValue(timestamp)}
+        )
+      `
+    );
   }
 
   await executeClubStatement(
