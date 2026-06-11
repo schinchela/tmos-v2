@@ -439,13 +439,30 @@ function id(prefix) {
 }
 
 function now() {
-  return new Date().toISOString();
+  const date = new Date();
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function addDays(days) {
   const date = new Date();
+
+  date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + days);
-  return date.toISOString();
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function cleanSlug(value) {
