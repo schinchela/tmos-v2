@@ -660,6 +660,40 @@ async function applyMigration021(env, databaseId) {
   );
 }
 
+async function applyMigration022(env, databaseId) {
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_role_assignments",
+    "planned_participant_type",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_role_assignments",
+    "planned_participant_id",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_role_assignments",
+    "planned_display_name",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_role_assignments",
+    "planned_email",
+    "TEXT"
+  );
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -3061,6 +3095,7 @@ async function runClubMigrations(env, databaseId) {
   );
   await applyMigration020(env, databaseId);
   await applyMigration021(env, databaseId);
+  await applyMigration022(env, databaseId);
 
 await runCloudflareD1Batch(
   env,
@@ -3119,10 +3154,28 @@ await runCloudflareD1Batch(
   ]
 );
 
+  await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '022_meeting_role_assignment_planning',
+        datetime('now')
+      )
+    `
+  ]
+);
+  
+
   applied.push("018_planned_agenda_speeches");
   applied.push("019_member_recognition_suffix");
   applied.push("020_table_topics_participants");
   applied.push("021_award_candidates");
+  applied.push("022_meeting_role_assignment_planning");
   return applied;
 }
 
