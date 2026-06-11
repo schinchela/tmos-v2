@@ -1522,6 +1522,56 @@ async function addMeetingParticipant(request, env, meetingId) {
   }, 201);
 }
 
+async function listMeetingAttendanceSources(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const membersResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        id,
+        display_name,
+        email,
+        phone
+      FROM members
+      WHERE membership_status != 'ARCHIVED'
+      ORDER BY display_name ASC
+    `
+  );
+
+  let guests = [];
+
+  try {
+    const guestsResult = await executeClubQuery(
+      env,
+      auth.user.club_id,
+      `
+        SELECT
+          id,
+          display_name,
+          email,
+          phone
+        FROM guests
+        ORDER BY display_name ASC
+      `
+    );
+
+    guests = guestsResult?.[0]?.results || guestsResult?.results || [];
+  } catch (_) {
+    guests = [];
+  }
+
+  return json({
+    success: true,
+    data: {
+      members: membersResult?.[0]?.results || membersResult?.results || [],
+      guests
+    }
+  });
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2270,7 +2320,7 @@ async function handleRequest(request, env) {
   const meetingParticipantsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/participants$/);
   if (meetingParticipantsMatch && request.method === "GET") {  return listMeetingParticipants(request, env, meetingParticipantsMatch[1]);}
   if (meetingParticipantsMatch && request.method === "POST") {  return addMeetingParticipant(request, env, meetingParticipantsMatch[1]);}
-
+  if (url.pathname === "/api/meeting-attendance-sources" && request.method === "GET") {  return listMeetingAttendanceSources(request, env);}
                                                         
 
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
