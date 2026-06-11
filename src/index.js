@@ -1829,7 +1829,29 @@ async function createAgendaRole(request, env, meetingId) {
 
   const roleId = id("role");
   const timestamp = now();
+  const existingRoleResult = await executeClubQuery(
+  env,
+  auth.user.club_id,
+  `
+    SELECT id
+    FROM meeting_role_assignments
+    WHERE meeting_id = ${sqlValue(meetingId)}
+      AND role_code = ${sqlValue(body.roleCode)}
+    LIMIT 1
+  `
+);
 
+const existingRoleRows =
+  existingRoleResult?.[0]?.results ||
+  existingRoleResult?.results ||
+  [];
+
+if (existingRoleRows.length) {
+  return json({
+    success: false,
+    error: "This role is already planned for this meeting"
+  }, 409);
+}
   await executeClubStatement(
     env,
     auth.user.club_id,
