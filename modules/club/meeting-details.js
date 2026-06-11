@@ -507,6 +507,25 @@ const agendaMemberWrap = document.getElementById("agendaMemberWrap");
 const agendaGuestWrap = document.getElementById("agendaGuestWrap");
 const agendaVisitorWrap = document.getElementById("agendaVisitorWrap");
 
+  document.getElementById("deleteMeetingBtn")?.addEventListener("click", async () => {
+  const confirmed = confirm("Delete this meeting and all agenda, attendance, speeches and awards?");
+  if (!confirmed) return;
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}`,
+        {
+          method: "DELETE"
+        }
+      );
+      const { navigate } =
+        await import("../../assets/js/router.js");
+      navigate("club-meetings");
+
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+  
 function updateAgendaSourceUI() {
   const value = agendaRoleSourceType?.value || "";
 
