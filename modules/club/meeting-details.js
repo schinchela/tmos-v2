@@ -8,7 +8,7 @@ let attendanceSources = {
   guests: []
 };
 let meetingRoleConfig = [];
-
+let awardCandidates = [];
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -640,6 +640,113 @@ function renderTableTopicsPanel(tableTopics, participants) {
     </section>
   `;
 }
+
+function groupAwardCandidates(candidates) {
+  return candidates.reduce((groups, candidate) => {
+    const key = candidate.award_key || "UNKNOWN";
+
+    if (!groups[key]) {
+      groups[key] = {
+        awardKey: key,
+        awardName: candidate.award_name || key,
+        candidates: []
+      };
+    }
+
+    groups[key].candidates.push(candidate);
+
+    return groups;
+  }, {});
+}
+
+function renderAwardsPanel(candidates) {
+  const grouped = Object.values(groupAwardCandidates(candidates));
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Awards</h3>
+        <span class="badge">${candidates.length} Candidates</span>
+      </div>
+
+      <div class="enterprise-form">
+        <button
+          class="primary-btn"
+          id="generateAwardCandidatesBtn"
+          type="button"
+        >
+          Generate / Refresh Candidates
+        </button>
+
+        <p class="form-message" id="awardCandidatesMessage"></p>
+      </div>
+
+      ${
+        grouped.length
+          ? grouped.map((group) => `
+            <section class="module-panel">
+              <div class="panel-header">
+                <h3>${escapeHtml(group.awardName)}</h3>
+                <span class="badge">${group.candidates.length} Eligible</span>
+              </div>
+
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Candidate</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  ${group.candidates.map((candidate) => `
+                    <tr>
+                      <td>
+                        <strong>${escapeHtml(candidate.participant_name || "-")}</strong><br>
+                        <small>${escapeHtml(candidate.participant_email || "")}</small>
+                      </td>
+                      <td>${escapeHtml(candidate.participant_type || "-")}</td>
+                      <td>${escapeHtml(candidate.source_type || "-")}</td>
+                      <td>
+                        ${
+                          Number(candidate.is_excluded) === 1
+                            ? `<span class="badge danger">Excluded</span>`
+                            : `<span class="badge">Eligible</span>`
+                        }
+                      </td>
+                      <td>
+                        <button
+                          class="ghost-btn small-btn ${Number(candidate.is_excluded) === 1 ? "" : "danger"}"
+                          data-toggle-award-candidate="${escapeHtml(candidate.id)}"
+                          data-current-excluded="${escapeHtml(candidate.is_excluded || 0)}"
+                          type="button"
+                        >
+                          ${
+                            Number(candidate.is_excluded) === 1
+                              ? "Include"
+                              : "Exclude"
+                          }
+                        </button>
+                      </td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </section>
+          `).join("")
+          : `
+            <div class="enterprise-form">
+              No award candidates generated yet. Click Generate / Refresh Candidates.
+            </div>
+          `
+      }
+    </section>
+  `;
+}
+
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -679,10 +786,7 @@ function renderMeetingCommandCenter(data) {
     ${renderTableTopicsPanel(data.tableTopics || [], data.participants || [])}
 
     
-    ${emptyPanel(
-      "Awards",
-      "Record Best Speaker, Best Evaluator, Best Table Topics and other meeting awards."
-    )}
+    ${renderAwardsPanel(awardCandidates)}
 
     ${emptyPanel(
       "Close Meeting",
@@ -722,10 +826,24 @@ async function loadMeetingRoleConfig() {
   }
 }
 
+async function loadAwardCandidates() {
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/award-candidates`
+    );
+
+    awardCandidates = response.data || [];
+  } catch (_) {
+    awardCandidates = [];
+  }
+}
+
+
 async function loadMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
   await loadAttendanceSources();
   await loadMeetingRoleConfig();
+  await loadAwardCandidates();
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
 
@@ -1138,6 +1256,63 @@ document.querySelectorAll("[data-delete-table-topic]").forEach((button) => {
       alert(error.message);
       button.disabled = false;
       button.textContent = "Remove";
+    }
+  });
+});
+
+  const generateAwardCandidatesBtn =
+  document.getElementById("generateAwardCandidatesBtn");
+
+generateAwardCandidatesBtn?.addEventListener("click", async () => {
+  const message = document.getElementById("awardCandidatesMessage");
+
+  message.textContent = "Generating award candidates...";
+  generateAwardCandidatesBtn.disabled = true;
+
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/award-candidates/generate`,
+      {
+        method: "POST"
+      }
+    );
+
+    message.textContent =
+      `Generated ${response.data?.inserted || 0} award candidates.`;
+
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+    generateAwardCandidatesBtn.disabled = false;
+  }
+});
+
+document.querySelectorAll("[data-toggle-award-candidate]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const candidateId = button.dataset.toggleAwardCandidate;
+    const isCurrentlyExcluded =
+      Number(button.dataset.currentExcluded || 0) === 1;
+
+    button.disabled = true;
+    button.textContent = isCurrentlyExcluded
+      ? "Including..."
+      : "Excluding...";
+
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/award-candidates/${candidateId}`,
+        {
+          method: "PUT",
+          body: {
+            isExcluded: !isCurrentlyExcluded
+          }
+        }
+      );
+
+      await loadMeetingDetails();
+    } catch (error) {
+      alert(error.message);
+      button.disabled = false;
     }
   });
 });
