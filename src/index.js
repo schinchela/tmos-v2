@@ -571,41 +571,36 @@ async function applyMigration019(
   );
 }
 async function applyMigration020(env, databaseId) {
-  await ensureTable(
+  await ensureColumn(
     env,
     databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS meeting_table_topics (
-        id TEXT PRIMARY KEY,
-        meeting_id TEXT NOT NULL,
-
-        participant_ref_id TEXT,
-        participant_type TEXT,
-        participant_id TEXT,
-
-        participant_name TEXT,
-        participant_email TEXT,
-
-        created_at TEXT,
-        updated_at TEXT
-      )
-    `
+    "meeting_table_topics",
+    "participant_type",
+    "TEXT"
   );
 
-  await ensureIndex(
+  await ensureColumn(
     env,
     databaseId,
-    "idx_meeting_table_topics_meeting",
     "meeting_table_topics",
-    "meeting_id"
+    "participant_id",
+    "TEXT"
   );
 
-  await ensureIndex(
+  await ensureColumn(
     env,
     databaseId,
-    "idx_meeting_table_topics_participant",
     "meeting_table_topics",
-    "participant_ref_id"
+    "participant_name",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meeting_table_topics",
+    "participant_email",
+    "TEXT"
   );
 }
 
