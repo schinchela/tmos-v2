@@ -1775,7 +1775,117 @@ async function updateConfiguration(request, env, configType, configId) {
   });
 }
 
+async function listAgendaRoles(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_role_assignments
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY sequence_order ASC, role_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function createAgendaRole(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const roleId = id("role");
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_role_assignments (
+        id,
+        meeting_id,
+        participant_ref_id,
+        role_code,
+        role_name,
+        assignment_status,
+        sequence_order,
+        notes,
+        planned_participant_type,
+        planned_participant_id,
+        planned_display_name,
+        planned_email,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(roleId)},
+        ${sqlValue(meetingId)},
+        NULL,
+        ${sqlValue(body.roleCode)},
+        ${sqlValue(body.roleName)},
+        ${sqlValue(body.assignmentStatus || "PLANNED")},
+        ${Number(body.sequenceOrder || 0)},
+        ${sqlValue(body.notes)},
+        ${sqlValue(body.plannedParticipantType)},
+        ${sqlValue(body.plannedParticipantId)},
+        ${sqlValue(body.plannedDisplayName)},
+        ${sqlValue(body.plannedEmail)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: roleId
+    }
+  }, 201);
+}
+
+async function updateAgendaRole(request, env, meetingId, roleId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meeting_role_assignments
+      SET
+        role_code = ${sqlValue(body.roleCode)},
+        role_name = ${sqlValue(body.roleName)},
+        assignment_status = ${sqlValue(body.assignmentStatus || "PLANNED")},
+        sequence_order = ${Number(body.sequenceOrder || 0)},
+        notes = ${sqlValue(body.notes)},
+        planned_participant_type = ${sqlValue(body.plannedParticipantType)},
+        planned_participant_id = ${sqlValue(body.plannedParticipantId)},
+        planned_display_name = ${sqlValue(body.plannedDisplayName)},
+        planned_email = ${sqlValue(body.plannedEmail)},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(roleId)}
+      AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: roleId
+    }
+  });
+}
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2530,7 +2640,11 @@ async function handleRequest(request, env) {
   if (configurationTypeMatch && request.method === "POST") { return createConfiguration(request,env,configurationTypeMatch[1]);}
   const configurationUpdateMatch = url.pathname.match(/^\/api\/configuration\/([^/]+)\/([^/]+)$/);
   if (configurationUpdateMatch && request.method === "PUT") { return updateConfiguration(request,env,configurationUpdateMatch[1],configurationUpdateMatch[2]);}                                                      
-
+  const agendaRolesMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles$/);
+  if (agendaRolesMatch && request.method === "GET") { return listAgendaRoles(request, env, agendaRolesMatch[1]);}
+  if (agendaRolesMatch && request.method === "POST") {  return createAgendaRole(request, env, agendaRolesMatch[1]);}
+  const agendaRoleUpdateMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
+  if (agendaRoleUpdateMatch && request.method === "PUT") {  return updateAgendaRole(request,env,agendaRoleUpdateMatch[1],agendaRoleUpdateMatch[2]);}
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
