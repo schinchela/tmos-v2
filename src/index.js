@@ -1689,7 +1689,9 @@ async function listMeetingAttendanceSources(request, env) {
         id,
         display_name,
         email,
-        phone
+        phone,
+        pathway_name,
+        pathway_level
       FROM members
       WHERE membership_status != 'ARCHIVED'
       ORDER BY display_name ASC
