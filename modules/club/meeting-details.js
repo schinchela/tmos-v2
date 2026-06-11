@@ -286,6 +286,8 @@ function renderAgendaRolesPanel(roles) {
 const configRoles = activeMeetingRoles().filter(
   (role) => !plannedRoleCodes.has(role.config_key)
 );
+const availableMembers = attendanceSources.members;
+const availableGuests = attendanceSources.guests;
 
   return `
     <section class="module-panel">
