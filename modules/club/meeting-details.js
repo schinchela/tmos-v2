@@ -831,7 +831,7 @@ function renderMeetingCommandCenter(data) {
     ${renderTableTopicsPanel(data.tableTopics || [], data.participants || [])}
 
     
-    ${renderAwardsPanel(awardCandidates)}
+    ${renderAwardsPanel(awardCandidates, votingSession)}
 
     ${emptyPanel(
       "Close Meeting",
@@ -907,7 +907,11 @@ async function loadMeetingDetails() {
 
   container.innerHTML = renderMeetingCommandCenter(meetingData);
   bindMeetingCommandCenterEvents();
+  if (!window.__keepMeetingScroll) {
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+window.__keepMeetingScroll = false;
 }
 
 function bindMeetingCommandCenterEvents() {
