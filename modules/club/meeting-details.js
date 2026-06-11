@@ -3,6 +3,11 @@ import { apiRequest } from "../../assets/js/api.js";
 let currentMeetingId = null;
 let meetingData = null;
 
+let attendanceSources = {
+  members: [],
+  guests: []
+};
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -137,6 +142,24 @@ function renderMeetingProfile(meeting) {
   `;
 }
 
+function renderPersonOptions(items) {
+  if (!items.length) {
+    return `<option value="">No records available</option>`;
+  }
+
+  return `
+    <option value="">Select person</option>
+    ${items.map((item) => `
+      <option
+        value="${escapeHtml(item.id)}"
+        data-name="${escapeHtml(item.display_name)}"
+        data-email="${escapeHtml(item.email || "")}"
+      >
+        ${escapeHtml(item.display_name)}${item.email ? ` — ${escapeHtml(item.email)}` : ""}
+      </option>
+    `).join("")}
+  `;
+}
 function renderParticipantsPanel(participants) {
   return `
     <section class="module-panel">
@@ -146,38 +169,52 @@ function renderParticipantsPanel(participants) {
       </div>
 
       <form class="enterprise-form" id="addParticipantForm">
-        <div class="form-grid">
-          <label>
-            Participant Type
-            <select name="participantType">
-              <option value="MEMBER">Member</option>
-              <option value="GUEST">Guest</option>
-              <option value="VISITOR">Visitor</option>
-            </select>
-          </label>
+  <div class="form-grid">
+    <label>
+      Add From
+      <select name="sourceType" id="participantSourceType">
+        <option value="MEMBER">Member</option>
+        <option value="GUEST">Guest</option>
+        <option value="VISITOR">Manual Visitor</option>
+      </select>
+    </label>
 
-          <label>
-            Display Name
-            <input name="displayName" placeholder="Participant name" required />
-          </label>
+    <label id="memberSelectWrap">
+      Member
+      <select id="memberParticipantSelect">
+        ${renderPersonOptions(attendanceSources.members)}
+      </select>
+    </label>
 
-          <label>
-            Email
-            <input name="email" type="email" placeholder="Optional email" />
-          </label>
+    <label id="guestSelectWrap" style="display:none;">
+      Guest
+      <select id="guestParticipantSelect">
+        ${renderPersonOptions(attendanceSources.guests)}
+      </select>
+    </label>
 
-          <label>
-            Notes
-            <input name="notes" placeholder="Optional notes" />
-          </label>
-        </div>
+    <label id="visitorNameWrap" style="display:none;">
+      Visitor Name
+      <input name="displayName" id="visitorDisplayName" placeholder="Visitor name" />
+    </label>
 
-        <button class="primary-btn" id="addParticipantBtn" type="submit">
-          Add Present Participant
-        </button>
+    <label>
+      Email
+      <input name="email" id="participantEmail" type="email" placeholder="Optional email" />
+    </label>
 
-        <p class="form-message" id="participantMessage"></p>
-      </form>
+    <label>
+      Notes
+      <input name="notes" placeholder="Optional notes" />
+    </label>
+  </div>
+
+  <button class="primary-btn" id="addParticipantBtn" type="submit">
+    Add Present Participant
+  </button>
+
+  <p class="form-message" id="participantMessage"></p>
+</form>
 
       <table class="table">
         <thead>
@@ -282,10 +319,18 @@ export function renderMeetingDetails(meetingId) {
     </section>
   `;
 }
+async function loadAttendanceSources() {
+  try {
+    const response = await apiRequest("/api/meeting-attendance-sources");
+    attendanceSources = response.data || { members: [], guests: [] };
+  } catch (_) {
+    attendanceSources = { members: [], guests: [] };
+  }
+}
 
 async function loadMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
-
+  await loadAttendanceSources();
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
 
@@ -299,10 +344,79 @@ function bindMeetingCommandCenterEvents() {
   const message = document.getElementById("participantMessage");
   const button = document.getElementById("addParticipantBtn");
 
+  const sourceType = document.getElementById("participantSourceType");
+  const memberWrap = document.getElementById("memberSelectWrap");
+  const guestWrap = document.getElementById("guestSelectWrap");
+  const visitorWrap = document.getElementById("visitorNameWrap");
+
+  const memberSelect = document.getElementById("memberParticipantSelect");
+  const guestSelect = document.getElementById("guestParticipantSelect");
+  const visitorName = document.getElementById("visitorDisplayName");
+  const emailInput = document.getElementById("participantEmail");
+
+  function updateParticipantSourceUI() {
+    const value = sourceType?.value || "MEMBER";
+
+    memberWrap.style.display = value === "MEMBER" ? "" : "none";
+    guestWrap.style.display = value === "GUEST" ? "" : "none";
+    visitorWrap.style.display = value === "VISITOR" ? "" : "none";
+
+    emailInput.value = "";
+
+    if (value === "MEMBER") {
+      const selected = memberSelect.selectedOptions?.[0];
+      emailInput.value = selected?.dataset.email || "";
+    }
+
+    if (value === "GUEST") {
+      const selected = guestSelect.selectedOptions?.[0];
+      emailInput.value = selected?.dataset.email || "";
+    }
+  }
+
+  sourceType?.addEventListener("change", updateParticipantSourceUI);
+  memberSelect?.addEventListener("change", updateParticipantSourceUI);
+  guestSelect?.addEventListener("change", updateParticipantSourceUI);
+
+  updateParticipantSourceUI();
+
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    const payload = Object.fromEntries(new FormData(form).entries());
+    const selectedSource = sourceType.value;
+    let selectedOption = null;
+
+    const payload = {
+      participantType: selectedSource,
+      participantId: null,
+      displayName: "",
+      email: emailInput.value || "",
+      notes: new FormData(form).get("notes") || "",
+      attendanceStatus: "PRESENT"
+    };
+
+    if (selectedSource === "MEMBER") {
+      selectedOption = memberSelect.selectedOptions?.[0];
+      payload.participantId = memberSelect.value;
+      payload.displayName = selectedOption?.dataset.name || "";
+      payload.email = selectedOption?.dataset.email || payload.email;
+    }
+
+    if (selectedSource === "GUEST") {
+      selectedOption = guestSelect.selectedOptions?.[0];
+      payload.participantId = guestSelect.value;
+      payload.displayName = selectedOption?.dataset.name || "";
+      payload.email = selectedOption?.dataset.email || payload.email;
+    }
+
+    if (selectedSource === "VISITOR") {
+      payload.displayName = visitorName.value;
+    }
+
+    if (!payload.displayName) {
+      message.textContent = "Please select or enter a participant.";
+      return;
+    }
 
     message.textContent = "Adding participant...";
     button.disabled = true;
