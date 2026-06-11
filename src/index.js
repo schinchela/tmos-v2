@@ -3268,14 +3268,21 @@ async function getVotingSession(request, env, meetingId) {
       LIMIT 1
     `
   );
+  const session =
+  result?.[0]?.results?.[0] ||
+  result?.results?.[0] ||
+  null;
 
-  return json({
-    success: true,
-    data:
-      result?.[0]?.results?.[0] ||
-      result?.results?.[0] ||
-      null
-  });
+return json({
+  success: true,
+  data: session
+    ? {
+        ...session,
+        publicToken: session.public_token,
+        voteUrl: `${FRONTEND_URL}/vote/?slug=${session.public_token}`
+      }
+    : null
+});
 }
 
 function votingSlugFromDate(meetingDate, suffix = 0) {
