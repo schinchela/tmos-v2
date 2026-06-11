@@ -658,60 +658,6 @@ async function applyMigration021(env, databaseId) {
     "meeting_award_candidates",
     "source_type, source_record_id"
   );
-}async function applyMigration021(env, databaseId) {
-  await ensureTable(
-    env,
-    databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS meeting_award_candidates (
-        id TEXT PRIMARY KEY,
-
-        meeting_id TEXT NOT NULL,
-
-        award_config_id TEXT NOT NULL,
-        award_key TEXT NOT NULL,
-        award_name TEXT NOT NULL,
-
-        participant_type TEXT,
-        participant_id TEXT,
-
-        participant_name TEXT,
-        participant_email TEXT,
-
-        source_type TEXT,
-        source_record_id TEXT,
-
-        is_excluded INTEGER DEFAULT 0,
-
-        created_at TEXT,
-        updated_at TEXT
-      )
-    `
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_award_candidates_meeting",
-    "meeting_award_candidates",
-    "meeting_id"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_award_candidates_award",
-    "meeting_award_candidates",
-    "award_key"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_award_candidates_source",
-    "meeting_award_candidates",
-    "source_type, source_record_id"
-  );
 }
 
 function json(data, status = 200) {
