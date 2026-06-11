@@ -723,3 +723,21 @@ button:active,
   gap: 14px;
   padding: 18px;
 }
+.checkbox-grid {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+.checkbox-row input {
+  width: auto;
+}
