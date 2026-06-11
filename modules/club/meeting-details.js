@@ -407,6 +407,9 @@ function renderMeetingCommandCenter(data) {
         <button class="primary-btn" id="editMeetingBtn" type="button">
           Edit Meeting
         </button>
+        <button class="ghost-btn danger"  id="deleteMeetingBtn"  type="button">
+          Delete Meeting
+        </button>
       </div>
     </section>
 
