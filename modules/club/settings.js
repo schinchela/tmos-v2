@@ -181,7 +181,34 @@ export function renderClubSettings() {
         </tbody>
       </table>
     </section>
-  `;
+ <section class="module-panel">
+  <div class="panel-header">
+    <h3>Meeting Configuration</h3>
+  </div>
+
+  <div class="grid">
+    <article class="card config-card" data-config-type="MEETING_ROLE">
+      <span>Meeting Roles</span>
+      <strong>Manage Roles</strong>
+    </article>
+
+    <article class="card config-card" data-config-type="MEETING_AWARD">
+      <span>Meeting Awards</span>
+      <strong>Manage Awards</strong>
+    </article>
+
+    <article class="card config-card" data-config-type="MEETING_TYPE">
+      <span>Meeting Types</span>
+      <strong>Manage Types</strong>
+    </article>
+  </div>
+</section>
+
+<section
+  id="configurationManager"
+  class="module-panel"
+  style="display:none;"
+></section> `;
 }
 
 function updatePreview() {
@@ -260,6 +287,62 @@ async function loadOfficerTerms() {
   }
 }
 
+async function loadConfiguration(configType) {
+  const container = document.getElementById("configurationManager");
+
+  container.style.display = "block";
+
+  container.innerHTML = `
+    <div class="enterprise-form">
+      Loading configuration...
+    </div>
+  `;
+
+  try {
+    const response = await apiRequest(
+      `/api/configuration/${configType}`
+    );
+
+    const rows = response.data || [];
+
+    container.innerHTML = `
+      <div class="panel-header">
+        <h3>${configType}</h3>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Key</th>
+            <th>Active</th>
+            <th>Order</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${
+            rows.map(row => `
+              <tr>
+                <td>${row.config_name}</td>
+                <td>${row.config_key}</td>
+                <td>${row.is_active ? "Yes" : "No"}</td>
+                <td>${row.sort_order}</td>
+              </tr>
+            `).join("")
+          }
+        </tbody>
+      </table>
+    `;
+  } catch (error) {
+    container.innerHTML = `
+      <div class="enterprise-form">
+        Failed to load configuration.
+      </div>
+    `;
+  }
+}
+
 export async function initClubSettings() {
   const form = document.getElementById("clubSettingsForm");
   const select = document.getElementById("officerTermCycle");
@@ -272,7 +355,15 @@ export async function initClubSettings() {
   const yearInput = document.getElementById("termYear");
   const generationCycle = document.getElementById("termCycleForGeneration");
   const refreshTermsBtn = document.getElementById("refreshTermsBtn");
-
+  document
+  .querySelectorAll(".config-card")
+  .forEach(card => {
+    card.addEventListener("click", () => {
+      loadConfiguration(
+        card.dataset.configType
+      );
+    });
+  });
   select?.addEventListener("change", () => {
     updatePreview();
     generationCycle.value = select.value;
