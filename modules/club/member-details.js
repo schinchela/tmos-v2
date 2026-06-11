@@ -253,11 +253,15 @@ function renderListTable(title, rows, columns, emptyDescription) {
             <tr>
               ${columns.map((column) => {
                 const rawValue = row[column.key];
-                const value = column.format
-                  ? column.format(rawValue, row)
-                  : rawValue || "-";
+                if (column.render) {
+  return `<td>${column.render(row)}</td>`;
+}
 
-                return `<td>${escapeHtml(value)}</td>`;
+const value = column.format
+  ? column.format(rawValue, row)
+  : rawValue || "-";
+
+return `<td>${escapeHtml(value)}</td>`;
               }).join("")}
             </tr>
           `).join("")}
@@ -389,12 +393,29 @@ function renderMember360(data) {
       "Officer Terms",
       data.officerTerms || [],
       [
-        { key: "officer_role", label: "Role" },
-        { key: "term_label", label: "Term" },
-        { key: "term_start", label: "Start", format: formatDate },
-        { key: "term_end", label: "End", format: formatDate },
-        { key: "status", label: "Status" }
-      ],
+  { key: "officer_role", label: "Role" },
+  { key: "term_label", label: "Term" },
+  { key: "term_start", label: "Start", format: formatDate },
+  { key: "term_end", label: "End", format: formatDate },
+  { key: "status", label: "Status" },
+  {
+    key: "actions",
+    label: "Actions",
+    render: (row) => {
+      if (row.status !== "ACTIVE") return "-";
+
+      return `
+        <button
+          class="ghost-btn small-btn"
+          data-end-officer-term="${escapeHtml(row.id)}"
+          type="button"
+        >
+          End Term
+        </button>
+      `;
+    }
+  }
+],
       "No officer history yet. Officer term assignment will populate this section."
     )}
 
@@ -577,6 +598,27 @@ function bindMember360Events() {
       button.disabled = false;
     }
   });
+  document.querySelectorAll("[data-end-officer-term]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const assignmentId = button.dataset.endOfficerTerm;
+
+    button.disabled = true;
+    button.textContent = "Ending...";
+
+    try {
+      await apiRequest(
+        `/api/members/${currentMemberId}/officer-terms/${assignmentId}/end`,
+        { method: "POST" }
+      );
+
+      await loadMember360();
+    } catch (error) {
+      alert(error.message);
+      button.disabled = false;
+      button.textContent = "End Term";
+    }
+  });
+});
 }
 
 export async function initMemberDetails() {
