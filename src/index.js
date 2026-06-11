@@ -1962,7 +1962,7 @@ async function getMeetingDetails(request, env, meetingId) {
       meeting,
       participants: participantsResult?.[0]?.results || participantsResult?.results || [],
       roles: rolesResult?.[0]?.results || rolesResult?.results || [],
-      speeches: speechesResult?.[0]?.results || speechesResult?.results || []
+      speeches: speechesResult?.[0]?.results || speechesResult?.results || [],
       tableTopics: tableTopicsResult?.[0]?.results || tableTopicsResult?.results || []
     }
   });
