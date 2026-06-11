@@ -413,6 +413,86 @@ function renderMemberSummaryCards(data) {
     </section>
   `;
 }
+function renderPathwayManager(pathways) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Pathways</h3>
+        <span class="badge">${pathways.length}</span>
+      </div>
+
+      <form class="enterprise-form" id="addPathwayForm">
+        <div class="form-grid">
+          <label>
+            Pathway
+            <select name="pathwayName" required>
+              ${pathwayOptions("")}
+            </select>
+          </label>
+
+          <label>
+            Current Completed Level
+            <select name="currentLevel">
+              ${pathwayLevelOptions(0)}
+            </select>
+          </label>
+
+          <label>
+            Notes
+            <input name="notes" placeholder="Optional notes" />
+          </label>
+        </div>
+
+        <button class="primary-btn" id="addPathwayBtn" type="submit">
+          Add Pathway
+        </button>
+
+        <p class="form-message" id="addPathwayMessage"></p>
+      </form>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Pathway</th>
+            <th>Completed Level</th>
+            <th>Status</th>
+            <th>Mark Complete</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            pathways.length
+              ? pathways.map((pathway) => `
+                <tr>
+                  <td><strong>${escapeHtml(pathway.pathway_name)}</strong></td>
+                  <td>${Number(pathway.current_level || 0) === 0 ? "Not Started" : `Level ${pathway.current_level}`}</td>
+                  <td>${escapeHtml(pathway.status || "ACTIVE")}</td>
+                  <td>
+                    <select data-pathway-level="${escapeHtml(pathway.id)}">
+                      ${pathwayLevelOptions(pathway.current_level)}
+                    </select>
+                    <button
+                      class="ghost-btn small-btn"
+                      data-update-pathway="${escapeHtml(pathway.id)}"
+                      type="button"
+                    >
+                      Save
+                    </button>
+                  </td>
+                </tr>
+              `).join("")
+              : `
+                <tr>
+                  <td colspan="4">No pathways added yet.</td>
+                </tr>
+              `
+          }
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
 
 function renderMember360(data) {
   const member = data.member;
@@ -485,18 +565,8 @@ function renderMember360(data) {
         : `Level ${member.pathway_level}`
     }
   </strong>
-</article><article class="card">
-  <span>Pathway Level</span>
-  <strong>
-    ${
-      Number(member.pathway_level || 0) === 0
-        ? "Not Started"
-        : Number(member.pathway_level || 0) === 6
-        ? "Completed"
-        : `Level ${member.pathway_level}`
-    }
-  </strong>
 </article>
+
 
       <article class="card">
         <span>Officer Role</span>
@@ -539,18 +609,7 @@ function renderMember360(data) {
       "No officer history yet. Officer term assignment will populate this section."
     )}
 
-    ${renderListTable(
-      "Pathways",
-      data.pathways || [],
-      [
-        { key: "pathway_name", label: "Pathway" },
-        { key: "current_level", label: "Level" },
-        { key: "status", label: "Status" },
-        { key: "started_at", label: "Started", format: formatDate },
-        { key: "completed_at", label: "Completed", format: formatDate }
-      ],
-      "No detailed pathway history yet. Future meetings and education tracking will populate this."
-    )}
+    ${renderPathwayManager(data.pathways || [])}
 
     ${renderListTable(
       "Speeches",
@@ -789,6 +848,58 @@ reinstateBtn?.addEventListener("click", async () => {
     reinstateBtn.disabled = false;
     reinstateBtn.textContent = "Reinstate Member";
   }
+});
+  const addPathwayForm = document.getElementById("addPathwayForm");
+
+addPathwayForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const message = document.getElementById("addPathwayMessage");
+  const button = document.getElementById("addPathwayBtn");
+  const payload = Object.fromEntries(new FormData(addPathwayForm).entries());
+
+  message.textContent = "Adding pathway...";
+  button.disabled = true;
+
+  try {
+    await apiRequest(`/api/members/${currentMemberId}/pathways`, {
+      method: "POST",
+      body: payload
+    });
+
+    await loadMember360();
+  } catch (error) {
+    message.textContent = error.message;
+    button.disabled = false;
+  }
+});
+
+document.querySelectorAll("[data-update-pathway]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const pathwayId = button.dataset.updatePathway;
+    const select = document.querySelector(`[data-pathway-level="${pathwayId}"]`);
+
+    button.disabled = true;
+    button.textContent = "Saving...";
+
+    try {
+      await apiRequest(
+        `/api/members/${currentMemberId}/pathways/${pathwayId}/level`,
+        {
+          method: "PUT",
+          body: {
+            completedLevel: select.value
+          }
+        }
+      );
+
+      await loadMember360();
+    } catch (error) {
+      alert(error.message);
+      button.disabled = false;
+      button.textContent = "Save";
+    }
+  });
 });
 }
 
