@@ -182,7 +182,7 @@ const CLUB_MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_goals_status ON member_goals(status)`,
       `INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES ('008_member_goals', datetime('now'))`
     ]
-  }
+  },
   {
   version: "009_meetings",
   sql: [
