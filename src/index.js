@@ -3141,6 +3141,153 @@ async function updateAwardCandidate(request, env, meetingId, candidateId) {
   });
 }
 
+async function openVoting(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const existingResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_vote_sessions
+      WHERE meeting_id = ${sqlValue(meetingId)}
+        AND status = 'OPEN'
+      LIMIT 1
+    `
+  );
+
+  const existing =
+    existingResult?.[0]?.results?.[0] ||
+    existingResult?.results?.[0];
+
+  if (existing) {
+    return json({
+      success: true,
+      data: existing
+    });
+  }
+
+    const meetingResult = await executeClubQuery(
+  env,
+  auth.user.club_id,
+  `
+    SELECT meeting_date
+    FROM meetings
+    WHERE id = ${sqlValue(meetingId)}
+    LIMIT 1
+  `
+);
+
+const meeting =
+  meetingResult?.[0]?.results?.[0] ||
+  meetingResult?.results?.[0];
+
+if (!meeting?.meeting_date) {
+  return json({
+    success: false,
+    error: "Meeting date not found"
+  }, 400);
+}
+
+let suffix = 0;
+let token = votingSlugFromDate(meeting.meeting_date, suffix);
+
+while (true) {
+  const existingTokenResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT id
+      FROM meeting_vote_sessions
+      WHERE public_token = ${sqlValue(token)}
+      LIMIT 1
+    `
+  );
+
+  const existingToken =
+    existingTokenResult?.[0]?.results?.[0] ||
+    existingTokenResult?.results?.[0];
+
+  if (!existingToken) break;
+
+  suffix += 1;
+  token = votingSlugFromDate(meeting.meeting_date, suffix);
+}
+  const sessionId = id("vote");
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_vote_sessions (
+        id,
+        meeting_id,
+        public_token,
+        status,
+        opened_at,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(sessionId)},
+        ${sqlValue(meetingId)},
+        ${sqlValue(token)},
+        'OPEN',
+        ${sqlValue(now())},
+        ${sqlValue(now())},
+        ${sqlValue(now())}
+      )
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: sessionId,
+      publicToken: token,
+      status: "OPEN"
+    }
+  });
+}
+
+async function getVotingSession(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_vote_sessions
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `
+  );
+
+  return json({
+    success: true,
+    data:
+      result?.[0]?.results?.[0] ||
+      result?.results?.[0] ||
+      null
+  });
+}
+
+function votingSlugFromDate(meetingDate, suffix = 0) {
+  const date = new Date(`${meetingDate}T12:00:00`);
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  const base = `${day}${month}${year}`;
+
+  return suffix > 0 ? `${base}-${suffix}` : base;
+}
+
 
 
 
@@ -4030,7 +4177,10 @@ async function handleRequest(request, env) {
   if (awardCandidatesMatch && request.method === "GET") { return listAwardCandidates(request,env,awardCandidatesMatch[1]);}
   const awardCandidateUpdateMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/award-candidates\/([^/]+)$/);
   if (awardCandidateUpdateMatch && request.method === "PUT") { return updateAwardCandidate(request,env,awardCandidateUpdateMatch[1],awardCandidateUpdateMatch[2]);}
-
+  const openVotingMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting\/open$/);
+  if (openVotingMatch && request.method === "POST") { return openVoting(request,env,openVotingMatch[1]);}
+  const votingSessionMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting$/);
+  if (votingSessionMatch && request.method === "GET") { return getVotingSession(request,env,votingSessionMatch[1]);}
 
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
