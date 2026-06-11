@@ -694,6 +694,80 @@ async function applyMigration022(env, databaseId) {
   );
 }
 
+async function applyMigration023(env, databaseId) {
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS meeting_vote_sessions (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
+        public_token TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        opened_at TEXT,
+        closed_at TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_vote_sessions_meeting",
+    "meeting_vote_sessions",
+    "meeting_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_vote_sessions_token",
+    "meeting_vote_sessions",
+    "public_token"
+  );
+
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS meeting_votes (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
+        vote_session_id TEXT NOT NULL,
+
+        award_key TEXT NOT NULL,
+        award_name TEXT NOT NULL,
+
+        candidate_id TEXT NOT NULL,
+        candidate_name TEXT NOT NULL,
+
+        voter_name TEXT,
+        voter_email TEXT,
+
+        created_at TEXT
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_meeting_votes_session",
+    "meeting_votes",
+    "vote_session_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_meeting_votes_award",
+    "meeting_votes",
+    "meeting_id, award_key"
+  );
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -3074,32 +3148,20 @@ async function runClubMigrations(env, databaseId) {
   const applied = [];
 
   for (const migration of CLUB_MIGRATIONS) {
-    await runCloudflareD1Batch(
-      env,
-      databaseId,
-      migration.sql
-    );
+    await runCloudflareD1Batch(env,databaseId,migration.sql);
 
     applied.push(migration.version);
   }
 
   // Idempotent upgrade migrations
-  await applyMigration018(
-    env,
-    databaseId
-  );
-
-  await applyMigration019(
-    env,
-    databaseId
-  );
+  await applyMigration018(env,databaseId);
+  await applyMigration019(env,databaseId);
   await applyMigration020(env, databaseId);
   await applyMigration021(env, databaseId);
   await applyMigration022(env, databaseId);
-
-await runCloudflareD1Batch(
-  env,
-  databaseId,
+  await applyMigration023(env, databaseId);
+  
+await runCloudflareD1Batch(env,databaseId,
   [
     `
   INSERT OR IGNORE INTO schema_migrations
@@ -3169,6 +3231,21 @@ await runCloudflareD1Batch(
     `
   ]
 );
+  await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '023_voting_sessions',
+        datetime('now')
+      )
+    `
+  ]
+);
   
 
   applied.push("018_planned_agenda_speeches");
@@ -3176,6 +3253,7 @@ await runCloudflareD1Batch(
   applied.push("020_table_topics_participants");
   applied.push("021_award_candidates");
   applied.push("022_meeting_role_assignment_planning");
+  applied.push("023_voting_sessions");
   return applied;
 }
 
