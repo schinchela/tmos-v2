@@ -10,7 +10,7 @@ let attendanceSources = {
 let meetingRoleConfig = [];
 let awardCandidates = [];
 let votingSession = null;
-
+let votingResults = [];
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -661,7 +661,7 @@ function groupAwardCandidates(candidates) {
   }, {});
 }
 
-function renderAwardsPanel(candidates, session) {
+function renderAwardsPanel(candidates, session, results) {
   const grouped = Object.values(groupAwardCandidates(candidates));
   const voteUrl = session?.voteUrl || session?.vote_url || "";
 
@@ -744,7 +744,11 @@ function renderAwardsPanel(candidates, session) {
             `
             : ""
         }
-
+${
+  session && String(session.status || "").toUpperCase() === "CLOSED"
+    ? renderVotingResultsPanel(results)
+    : ""
+}
         <p class="form-message" id="awardCandidatesMessage"></p>
       </div>
 
@@ -816,6 +820,102 @@ function renderAwardsPanel(candidates, session) {
   `;
 }
 
+function groupVotingResults(results) {
+  return results.reduce((groups, row) => {
+    const key = row.award_key || "UNKNOWN";
+
+    if (!groups[key]) {
+      groups[key] = {
+        awardKey: key,
+        awardName: row.award_name || key,
+        rows: []
+      };
+    }
+
+    groups[key].rows.push(row);
+
+    return groups;
+  }, {});
+}
+
+function renderVotingResultsPanel(results) {
+  const grouped = Object.values(groupVotingResults(results));
+
+  if (!grouped.length) {
+    return `
+      <div class="module-panel">
+        <div class="enterprise-form">
+          No voting results available yet.
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="module-panel">
+      <div class="panel-header">
+        <h3>Voting Results</h3>
+        <span class="badge">Closed</span>
+      </div>
+
+      <div class="enterprise-form">
+        ${grouped.map((group) => `
+          <section class="module-panel">
+            <div class="panel-header">
+              <h3>${escapeHtml(group.awardName)}</h3>
+            </div>
+
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Candidate</th>
+                  <th>Votes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${group.rows.map((row) => `
+                  <tr>
+                    <td>${escapeHtml(row.participant_name || "-")}</td>
+                    <td>${escapeHtml(row.vote_count || 0)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+
+            <div class="enterprise-form">
+              <label>
+                Declare Winner
+                <select data-award-winner="${escapeHtml(group.awardKey)}">
+                  <option value="">Select winner</option>
+                  ${group.rows.map((row) => `
+                    <option
+                      value="${escapeHtml(row.candidate_id)}"
+                      data-award-key="${escapeHtml(row.award_key)}"
+                      data-award-name="${escapeHtml(row.award_name)}"
+                      data-participant-name="${escapeHtml(row.participant_name || "")}"
+                    >
+                      ${escapeHtml(row.participant_name || "-")} (${escapeHtml(row.vote_count || 0)} votes)
+                    </option>
+                  `).join("")}
+                </select>
+              </label>
+            </div>
+          </section>
+        `).join("")}
+
+        <button
+          class="primary-btn"
+          id="finalizeAwardsBtn"
+          type="button"
+        >
+          Finalize Awards
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -855,7 +955,7 @@ function renderMeetingCommandCenter(data) {
     ${renderTableTopicsPanel(data.tableTopics || [], data.participants || [])}
 
     
-    ${renderAwardsPanel(awardCandidates, votingSession)}
+    ${renderAwardsPanel(awardCandidates, votingSession, votingResults)}
 
     ${emptyPanel(
       "Close Meeting",
@@ -919,12 +1019,25 @@ async function loadVotingSession() {
   }
 }
 
+async function loadVotingResults() {
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/voting/results`
+    );
+
+    votingResults = response.data || [];
+  } catch (_) {
+    votingResults = [];
+  }
+}
+
 async function loadMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
   await loadAttendanceSources();
   await loadMeetingRoleConfig();
   await loadAwardCandidates();
   await loadVotingSession();
+  await loadVotingResults();
   
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
@@ -1463,6 +1576,50 @@ document.getElementById("copyVotingLinkBtn")?.addEventListener("click", async ()
 
   const message = document.getElementById("awardCandidatesMessage");
   message.textContent = "Voting link copied.";
+});
+
+  document.getElementById("finalizeAwardsBtn")?.addEventListener("click", async () => {
+  const message = document.getElementById("awardCandidatesMessage");
+
+  const winners = [
+    ...document.querySelectorAll("[data-award-winner]")
+  ].map((select) => {
+    const selected = select.selectedOptions?.[0];
+
+    if (!select.value || !selected) return null;
+
+    return {
+      awardKey: selected.dataset.awardKey,
+      awardName: selected.dataset.awardName,
+      candidateId: select.value,
+      participantName: selected.dataset.participantName
+    };
+  }).filter(Boolean);
+
+  if (!winners.length) {
+    message.textContent = "Please select winners before finalizing.";
+    return;
+  }
+
+  if (!confirm("Finalize these award winners?")) {
+    return;
+  }
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/voting/finalize`,
+      {
+        method: "POST",
+        body: { winners }
+      }
+    );
+
+    message.textContent = "Awards finalized successfully.";
+    window.__keepMeetingScroll = true;
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+  }
 });
 }
 
