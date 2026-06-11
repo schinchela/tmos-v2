@@ -648,10 +648,9 @@ function renderMember360(data) {
       "Awards",
       data.awards || [],
       [
-        { key: "award_type", label: "Type" },
         { key: "award_name", label: "Award" },
         { key: "award_date", label: "Date", format: formatDate },
-        { key: "source", label: "Source" }
+       
       ],
       "No awards recorded yet."
     )}
