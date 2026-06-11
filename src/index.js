@@ -1143,7 +1143,32 @@ async function createMemberPathway(request, env, memberId) {
 
   const pathwayId = id("pathway");
   const timestamp = now();
+  const existing = await executeClubQuery(
+  env,
+  auth.user.club_id,
+  `
+    SELECT id
+    FROM member_pathways
+    WHERE member_id = ${sqlValue(memberId)}
+      AND pathway_name = ${sqlValue(pathwayName)}
+      AND status = 'ACTIVE'
+  `
+);
 
+const rows =
+  existing?.[0]?.results ||
+  existing?.results ||
+  [];
+
+if (rows.length) {
+  return json(
+    {
+      success: false,
+      error: "This pathway already exists for the member."
+    },
+    400
+  );
+}
   await executeClubStatement(
     env,
     auth.user.club_id,
@@ -1257,19 +1282,28 @@ const PATHWAY_CODES = {
 function buildRecognitionSuffix(pathways, isDtm = false) {
   if (isDtm) return "DTM";
 
-  const suffixes = pathways
-    .filter((pathway) => Number(pathway.current_level || 0) > 0)
-    .map((pathway) => {
-      const code = PATHWAY_CODES[pathway.pathway_name] || "";
-      const level = Math.min(Number(pathway.current_level || 0), 5);
+  const suffixes = [
+  ...new Set(
+    pathways
+      .filter((pathway) => Number(pathway.current_level || 0) > 0)
+      .map((pathway) => {
+        const code = PATHWAY_CODES[pathway.pathway_name] || "";
+        const level = Math.min(
+          Number(pathway.current_level || 0),
+          5
+        );
 
-      if (!code || !level) return null;
+        if (!code || !level) {
+          return null;
+        }
 
-      return `${code}${level}`;
-    })
-    .filter(Boolean);
+        return `${code}${level}`;
+      })
+      .filter(Boolean)
+  )
+];
 
-  return suffixes.join(", ");
+return suffixes.join(", ");
 }
 
 
@@ -1291,19 +1325,20 @@ async function syncMemberEducationSummary(env, clubId, memberId) {
     `
   );
 
-  const pathways = result?.[0]?.results || result?.results || [];
+  const pathways =
+    result?.[0]?.results ||
+    result?.results ||
+    [];
 
   const active =
     pathways.find((p) => p.status === "ACTIVE") ||
     pathways[0];
-const completedPathways = pathways.filter(
-  (p) => p.status === "COMPLETED" || Number(p.current_level || 0) >= 5
-);
 
-const isDtm = false;
+  const isDtm = false;
 
-const recognitionSuffix = buildRecognitionSuffix(pathways, isDtm);
-  
+  const recognitionSuffix =
+    buildRecognitionSuffix(pathways, isDtm);
+
   await executeClubStatement(
     env,
     clubId,
