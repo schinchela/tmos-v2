@@ -425,10 +425,23 @@ async function createCloudflareD1Database(env, databaseName) {
 }
 
 async function runCloudflareD1Query(env, databaseId, sql) {
-  return cloudflareRequest(env, `/accounts/${env.CF_ACCOUNT_ID}/d1/database/${databaseId}/query`, {
-    method: "POST",
-    body: { sql }
-  });
+  return cloudflareRequest(
+    env,
+    `/accounts/${env.CF_ACCOUNT_ID}/d1/database/${databaseId}/query`,
+    {
+      method: "POST",
+      body: { sql }
+    }
+  );
+}
+
+async function runCloudflareD1Batch(env, databaseId, statements) {
+  const sql = statements
+    .map((statement) => statement.trim().replace(/;+\s*$/g, ""))
+    .filter(Boolean)
+    .join(";\n");
+
+  return runCloudflareD1Query(env, databaseId, sql);
 }
 
 async function getClubDatabaseInfo(env, clubId) {
@@ -1189,9 +1202,7 @@ async function runClubMigrations(env, databaseId) {
   const applied = [];
 
   for (const migration of CLUB_MIGRATIONS) {
-    for (const statement of migration.sql) {
-      await runCloudflareD1Query(env, databaseId, statement);
-    }
+    await runCloudflareD1Batch(env, databaseId, migration.sql);
     applied.push(migration.version);
   }
 
