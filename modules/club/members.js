@@ -1,4 +1,6 @@
 import { apiRequest } from "../../assets/js/api.js";
+import { memberDisplayName }  from "../../assets/js/member-display.js";
+
 
 let membersCache = [];
 let filteredMembers = [];
@@ -108,7 +110,7 @@ function renderMemberRows(members) {
       style="cursor:pointer;"
     >
       <td>
-        <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong><br>
+        <strong>${escapeHtml(memberDisplayName(member) || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong><br>
         <small>${escapeHtml(member.email || "-")}</small>
       </td>
       <td>${escapeHtml(member.toastmasters_id || "-")}</td>
