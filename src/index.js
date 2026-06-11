@@ -1967,6 +1967,61 @@ async function updateAgendaRole(request, env, meetingId, roleId) {
     }
   });
 }
+
+async function deleteMeeting(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_awards
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_speeches
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_role_assignments
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_participants
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meetings
+      WHERE id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2726,6 +2781,9 @@ async function handleRequest(request, env) {
   if (agendaRolesMatch && request.method === "POST") {  return createAgendaRole(request, env, agendaRolesMatch[1]);}
   const agendaRoleUpdateMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
   if (agendaRoleUpdateMatch && request.method === "PUT") {  return updateAgendaRole(request,env,agendaRoleUpdateMatch[1],agendaRoleUpdateMatch[2]);}
+  const meetingMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)$/);
+  if (meetingMatch && request.method === "DELETE") {  return deleteMeeting(request,env,meetingMatch[1]);}
+
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
