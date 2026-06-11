@@ -424,6 +424,14 @@ const CLUB_MIGRATIONS = [
     `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
      VALUES ('018_planned_agenda_speeches', datetime('now'))`
   ]
+},
+  {
+  version: "019_member_recognition_suffix",
+  sql: [
+    `ALTER TABLE members ADD COLUMN recognition_suffix TEXT`,
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('019_member_recognition_suffix', datetime('now'))`
+  ]
 }
 ];
 
@@ -1093,6 +1101,40 @@ async function updateMemberPathwayLevel(request, env, memberId, pathwayId) {
     }
   });
 }
+
+const PATHWAY_CODES = {
+  "Dynamic Leadership": "DL",
+  "Effective Coaching": "EC",
+  "Engaging Humor": "EH",
+  "Innovative Planning": "IP",
+  "Leadership Development": "LD",
+  "Motivational Strategies": "MS",
+  "Persuasive Influence": "PI",
+  "Presentation Mastery": "PM",
+  "Strategic Relationships": "SR",
+  "Team Collaboration": "TC",
+  "Visionary Communication": "VC"
+};
+
+function buildRecognitionSuffix(pathways, isDtm = false) {
+  if (isDtm) return "DTM";
+
+  const suffixes = pathways
+    .filter((pathway) => Number(pathway.current_level || 0) > 0)
+    .map((pathway) => {
+      const code = PATHWAY_CODES[pathway.pathway_name] || "";
+      const level = Math.min(Number(pathway.current_level || 0), 5);
+
+      if (!code || !level) return null;
+
+      return `${code}${level}`;
+    })
+    .filter(Boolean);
+
+  return suffixes.join(", ");
+}
+
+
 async function syncMemberEducationSummary(env, clubId, memberId) {
   const result = await executeClubQuery(
     env,
@@ -1116,7 +1158,14 @@ async function syncMemberEducationSummary(env, clubId, memberId) {
   const active =
     pathways.find((p) => p.status === "ACTIVE") ||
     pathways[0];
+const completedPathways = pathways.filter(
+  (p) => p.status === "COMPLETED" || Number(p.current_level || 0) >= 5
+);
 
+const isDtm = false;
+
+const recognitionSuffix = buildRecognitionSuffix(pathways, isDtm);
+  
   await executeClubStatement(
     env,
     clubId,
@@ -1125,6 +1174,7 @@ async function syncMemberEducationSummary(env, clubId, memberId) {
       SET
         pathway_name = ${sqlValue(active?.pathway_name || null)},
         pathway_level = ${Number(active?.current_level || 0)},
+        recognition_suffix = ${sqlValue(recognitionSuffix)},
         updated_at = ${sqlValue(now())}
       WHERE id = ${sqlValue(memberId)}
     `
