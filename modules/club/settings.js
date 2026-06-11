@@ -1,5 +1,8 @@
 import { apiRequest } from "../../assets/js/api.js";
-
+let configurationRows = [];
+let configurationRoles = [];
+let editingAwardId = null;
+let addingAward = false;
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -353,86 +356,26 @@ async function loadOfficerTerms() {
 
 async function loadConfiguration(configType) {
   const container = document.getElementById("configurationManager");
-
   container.style.display = "block";
 
   container.innerHTML = `
-    <div class="enterprise-form">
-      Loading configuration...
-    </div>
+    <div class="enterprise-form">Loading configuration...</div>
   `;
 
   try {
     const response = await apiRequest(`/api/configuration/${configType}`);
-    const rows = response.data || [];
+    configurationRows = response.data || [];
 
-    const title = configType.replaceAll("_", " ");
+    if (configType === "MEETING_AWARD") {
+      const rolesResponse = await apiRequest("/api/configuration/MEETING_ROLE");
+      configurationRoles = rolesResponse.data || [];
 
-    container.innerHTML = `
-      <div class="panel-header">
-        <h3>${escapeHtml(title)}</h3>
-        <span class="badge">Club Customizable</span>
-      </div>
+      container.innerHTML = renderAwardsConfiguration();
+      bindAwardsConfigurationEvents();
+      return;
+    }
 
-      <div class="enterprise-form">
-        <p>
-          Choose which items your club uses and rename them if needed.
-        </p>
-      </div>
-
-      <table class="table config-table">
-        <thead>
-          <tr>
-            <th style="width:120px;">Enabled</th>
-            <th>Name</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          ${
-            rows.length
-              ? rows.map((row) => `
-                <tr data-config-row="${escapeHtml(row.id)}">
-                  <td>
-                    <input
-                      type="checkbox"
-                      data-config-active
-                      ${Number(row.is_active) === 1 ? "checked" : ""}
-                    />
-                  </td>
-
-                  <td>
-                    <input
-                      data-config-name
-                      value="${escapeHtml(row.config_name)}"
-                    />
-                  </td>
-                </tr>
-              `).join("")
-              : `
-                <tr>
-                  <td colspan="2">No configuration items found.</td>
-                </tr>
-              `
-          }
-        </tbody>
-      </table>
-
-      <div class="top-actions" style="margin-top:16px;">
-        <button
-          class="primary-btn"
-          id="saveConfigurationBtn"
-          data-config-type="${escapeHtml(configType)}"
-          type="button"
-        >
-          Save Changes
-        </button>
-      </div>
-
-      <p class="form-message" id="configurationMessage"></p>
-    `;
-
-    bindConfigurationSaveButton(configType, rows);
+    container.innerHTML = renderGenericConfiguration(configType, configurationRows);
   } catch (error) {
     container.innerHTML = `
       <div class="enterprise-form">
@@ -440,6 +383,416 @@ async function loadConfiguration(configType) {
       </div>
     `;
   }
+}
+
+function parseConfigValue(row) {
+  try {
+    return JSON.parse(row.config_value_json || "{}");
+  } catch (_) {
+    return {};
+  }
+}
+
+function awardKeyFromName(name) {
+  return String(name || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+}
+
+function sourceLabel(source) {
+  if (source === "SPEECHES") return "Prepared Speakers";
+  if (source === "ROLES") return "Allowed Roles";
+  if (source === "TABLE_TOPICS") return "Table Topics Participants";
+  return "-";
+}
+
+function renderAllowedRolesSummary(configValue) {
+  if (configValue.candidateSource !== "ROLES") {
+    return "-";
+  }
+
+  const allowed = configValue.allowedRoleCodes || [];
+
+  if (!allowed.length) {
+    return "No roles selected";
+  }
+
+  return allowed
+    .map((code) => {
+      const role = configurationRoles.find((item) => item.config_key === code);
+      return role?.config_name || code;
+    })
+    .join(", ");
+}
+
+function renderRoleCheckboxes(selectedCodes, prefix) {
+  const selected = new Set(selectedCodes || []);
+
+  return `
+    <div class="form-grid">
+      ${configurationRoles
+        .filter((role) => Number(role.is_active) === 1)
+        .map((role) => `
+          <label>
+            <input
+              type="checkbox"
+              data-award-role="${escapeHtml(prefix)}"
+              value="${escapeHtml(role.config_key)}"
+              ${selected.has(role.config_key) ? "checked" : ""}
+            />
+            ${escapeHtml(role.config_name)}
+          </label>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
+function renderAwardEditor(row) {
+  const configValue = parseConfigValue(row);
+  const source = configValue.candidateSource || "ROLES";
+  const allowedRoleCodes = configValue.allowedRoleCodes || [];
+
+  return `
+    <tr>
+      <td colspan="5">
+        <div class="enterprise-form">
+          <div class="form-grid">
+            <label>
+              Award Name
+              <input
+                id="editAwardName_${escapeHtml(row.id)}"
+                value="${escapeHtml(row.config_name)}"
+              />
+            </label>
+
+            <label>
+              Candidate Source
+              <select id="editAwardSource_${escapeHtml(row.id)}">
+                <option value="SPEECHES" ${source === "SPEECHES" ? "selected" : ""}>
+                  Prepared Speakers
+                </option>
+                <option value="ROLES" ${source === "ROLES" ? "selected" : ""}>
+                  Allowed Roles
+                </option>
+                <option value="TABLE_TOPICS" ${source === "TABLE_TOPICS" ? "selected" : ""}>
+                  Table Topics Participants
+                </option>
+              </select>
+            </label>
+
+            <label>
+              Enabled
+              <select id="editAwardActive_${escapeHtml(row.id)}">
+                <option value="1" ${Number(row.is_active) === 1 ? "selected" : ""}>Enabled</option>
+                <option value="0" ${Number(row.is_active) === 0 ? "selected" : ""}>Disabled</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="module-panel">
+            <div class="panel-header">
+              <h3>Allowed Roles</h3>
+            </div>
+            ${renderRoleCheckboxes(allowedRoleCodes, row.id)}
+          </div>
+
+          <button
+            class="primary-btn"
+            data-save-award="${escapeHtml(row.id)}"
+            type="button"
+          >
+            Save
+          </button>
+
+          <button
+            class="ghost-btn"
+            data-cancel-award-edit
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function renderAddAwardForm() {
+  if (!addingAward) return "";
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Add New Award</h3>
+      </div>
+
+      <div class="enterprise-form">
+        <div class="form-grid">
+          <label>
+            Award Name
+            <input id="newAwardName" placeholder="Example: Best Role Player" />
+          </label>
+
+          <label>
+            Candidate Source
+            <select id="newAwardSource">
+              <option value="SPEECHES">Prepared Speakers</option>
+              <option value="ROLES">Allowed Roles</option>
+              <option value="TABLE_TOPICS">Table Topics Participants</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="module-panel">
+          <div class="panel-header">
+            <h3>Allowed Roles</h3>
+          </div>
+          ${renderRoleCheckboxes([], "new")}
+        </div>
+
+        <button class="primary-btn" id="createAwardBtn" type="button">
+          Create Award
+        </button>
+
+        <button class="ghost-btn" id="cancelCreateAwardBtn" type="button">
+          Cancel
+        </button>
+
+        <p class="form-message" id="awardConfigMessage"></p>
+      </div>
+    </section>
+  `;
+}
+
+function renderAwardsConfiguration() {
+  return `
+    <div class="panel-header">
+      <h3>Awards Configuration</h3>
+      <button class="ghost-btn" id="backToMeetingConfiguration" type="button">
+        Back
+      </button>
+    </div>
+
+    <div class="enterprise-form">
+      <button class="primary-btn" id="showAddAwardBtn" type="button">
+        Add New Award
+      </button>
+      <p class="form-message" id="awardConfigMessage"></p>
+    </div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Award</th>
+          <th>Candidate Source</th>
+          <th>Allowed Roles</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${
+          configurationRows.length
+            ? configurationRows.map((row) => {
+                const configValue = parseConfigValue(row);
+
+                return `
+                  <tr>
+                    <td><strong>${escapeHtml(row.config_name)}</strong></td>
+                    <td>${escapeHtml(sourceLabel(configValue.candidateSource))}</td>
+                    <td>${escapeHtml(renderAllowedRolesSummary(configValue))}</td>
+                    <td>${Number(row.is_active) === 1 ? "Enabled" : "Disabled"}</td>
+                    <td>
+                      <button
+                        class="ghost-btn small-btn"
+                        data-edit-award="${escapeHtml(row.id)}"
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                  ${editingAwardId === row.id ? renderAwardEditor(row) : ""}
+                `;
+              }).join("")
+            : `
+              <tr>
+                <td colspan="5">No awards configured yet.</td>
+              </tr>
+            `
+        }
+      </tbody>
+    </table>
+
+    ${renderAddAwardForm()}
+  `;
+}
+
+function renderGenericConfiguration(configType, rows) {
+  return `
+    <div class="panel-header">
+      <h3>${escapeHtml(configType)}</h3>
+    </div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Key</th>
+          <th>Active</th>
+          <th>Order</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${
+          rows.map((row) => `
+            <tr>
+              <td>${escapeHtml(row.config_name)}</td>
+              <td>${escapeHtml(row.config_key)}</td>
+              <td>${Number(row.is_active) === 1 ? "Yes" : "No"}</td>
+              <td>${escapeHtml(row.sort_order)}</td>
+            </tr>
+          `).join("")
+        }
+      </tbody>
+    </table>
+  `;
+}
+
+function bindAwardsConfigurationEvents() {
+  document.getElementById("backToMeetingConfiguration")?.addEventListener("click", () => {
+    const container = document.getElementById("configurationManager");
+    container.style.display = "none";
+    container.innerHTML = "";
+    editingAwardId = null;
+    addingAward = false;
+  });
+
+  document.getElementById("showAddAwardBtn")?.addEventListener("click", () => {
+    addingAward = true;
+    editingAwardId = null;
+    document.getElementById("configurationManager").innerHTML = renderAwardsConfiguration();
+    bindAwardsConfigurationEvents();
+  });
+
+  document.querySelectorAll("[data-edit-award]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingAwardId = button.dataset.editAward;
+      addingAward = false;
+      document.getElementById("configurationManager").innerHTML = renderAwardsConfiguration();
+      bindAwardsConfigurationEvents();
+    });
+  });
+
+  document.querySelectorAll("[data-cancel-award-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingAwardId = null;
+      document.getElementById("configurationManager").innerHTML = renderAwardsConfiguration();
+      bindAwardsConfigurationEvents();
+    });
+  });
+
+  document.querySelectorAll("[data-save-award]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const awardId = button.dataset.saveAward;
+      const row = configurationRows.find((item) => item.id === awardId);
+      const message = document.getElementById("awardConfigMessage");
+
+      const name = document.getElementById(`editAwardName_${awardId}`).value.trim();
+      const source = document.getElementById(`editAwardSource_${awardId}`).value;
+      const isActive = document.getElementById(`editAwardActive_${awardId}`).value === "1";
+
+      const allowedRoleCodes = [
+        ...document.querySelectorAll(`[data-award-role="${awardId}"]:checked`)
+      ].map((checkbox) => checkbox.value);
+
+      if (!name) {
+        message.textContent = "Award name is required.";
+        return;
+      }
+
+      button.disabled = true;
+      message.textContent = "Saving award...";
+
+      try {
+        await apiRequest(`/api/configuration/MEETING_AWARD/${awardId}`, {
+          method: "PUT",
+          body: {
+            configName: name,
+            configKey: row.config_key,
+            configValue: {
+              candidateSource: source,
+              allowedRoleCodes: source === "ROLES" ? allowedRoleCodes : []
+            },
+            isActive,
+            sortOrder: row.sort_order || 999
+          }
+        });
+
+        editingAwardId = null;
+        addingAward = false;
+        await loadConfiguration("MEETING_AWARD");
+      } catch (error) {
+        message.textContent = error.message;
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.getElementById("cancelCreateAwardBtn")?.addEventListener("click", () => {
+    addingAward = false;
+    document.getElementById("configurationManager").innerHTML = renderAwardsConfiguration();
+    bindAwardsConfigurationEvents();
+  });
+
+  document.getElementById("createAwardBtn")?.addEventListener("click", async () => {
+    const message = document.getElementById("awardConfigMessage");
+    const button = document.getElementById("createAwardBtn");
+
+    const name = document.getElementById("newAwardName").value.trim();
+    const source = document.getElementById("newAwardSource").value;
+
+    const allowedRoleCodes = [
+      ...document.querySelectorAll(`[data-award-role="new"]:checked`)
+    ].map((checkbox) => checkbox.value);
+
+    if (!name) {
+      message.textContent = "Award name is required.";
+      return;
+    }
+
+    button.disabled = true;
+    message.textContent = "Creating award...";
+
+    try {
+      await apiRequest("/api/configuration/MEETING_AWARD", {
+        method: "POST",
+        body: {
+          configGroup: "MEETINGS",
+          configKey: awardKeyFromName(name),
+          configName: name,
+          configValue: {
+            candidateSource: source,
+            allowedRoleCodes: source === "ROLES" ? allowedRoleCodes : []
+          },
+          sortOrder: 999
+        }
+      });
+
+      addingAward = false;
+      editingAwardId = null;
+      await loadConfiguration("MEETING_AWARD");
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
 }
 
 function bindConfigurationSaveButton(configType, rows) {
