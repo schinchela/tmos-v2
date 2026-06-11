@@ -706,8 +706,6 @@ function renderAwardsPanel(candidates) {
                         <strong>${escapeHtml(candidate.participant_name || "-")}</strong><br>
                         <small>${escapeHtml(candidate.participant_email || "")}</small>
                       </td>
-                      <td>${escapeHtml(candidate.participant_type || "-")}</td>
-                      <td>${escapeHtml(candidate.source_type || "-")}</td>
                       <td>
                         ${
                           Number(candidate.is_excluded) === 1
