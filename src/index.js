@@ -1945,6 +1945,16 @@ async function getMeetingDetails(request, env, meetingId) {
       ORDER BY created_at ASC
     `
   );
+  const tableTopicsResult = await executeClubQuery(
+  env,
+  auth.user.club_id,
+  `
+    SELECT *
+    FROM meeting_table_topics
+    WHERE meeting_id = ${sqlValue(meetingId)}
+    ORDER BY participant_name ASC
+  `
+);
 
   return json({
     success: true,
@@ -1953,6 +1963,7 @@ async function getMeetingDetails(request, env, meetingId) {
       participants: participantsResult?.[0]?.results || participantsResult?.results || [],
       roles: rolesResult?.[0]?.results || rolesResult?.results || [],
       speeches: speechesResult?.[0]?.results || speechesResult?.results || []
+      tableTopics: tableTopicsResult?.[0]?.results || tableTopicsResult?.results || []
     }
   });
 }
