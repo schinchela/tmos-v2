@@ -411,7 +411,7 @@ const CLUB_MIGRATIONS = [
 ];
 
 async function getTableColumns(env, databaseId, tableName) {
-  const result = await executeClubQuery(
+  const result = await runCloudflareD1Query(
     env,
     databaseId,
     `PRAGMA table_info(${tableName})`
@@ -445,19 +445,18 @@ async function ensureColumn(
     return false;
   }
 
-  await executeClubStatement(
+  await runCloudflareD1Batch(
     env,
     databaseId,
-    `
-      ALTER TABLE ${tableName}
-      ADD COLUMN ${columnName}
-      ${columnDefinition}
-    `
+    [
+      `ALTER TABLE ${tableName}
+       ADD COLUMN ${columnName}
+       ${columnDefinition}`
+    ]
   );
 
   return true;
 }
-
 async function ensureIndex(
   env,
   databaseId,
@@ -465,15 +464,17 @@ async function ensureIndex(
   tableName,
   columns
 ) {
-  await executeClubStatement(
+  await runCloudflareD1Batch(
     env,
     databaseId,
-    `
+    [
+      `
       CREATE INDEX IF NOT EXISTS
       ${indexName}
       ON ${tableName}
       (${columns})
-    `
+      `
+    ]
   );
 }
 
@@ -482,10 +483,10 @@ async function ensureTable(
   databaseId,
   createSql
 ) {
-  await executeClubStatement(
+  await runCloudflareD1Batch(
     env,
     databaseId,
-    createSql
+    [createSql]
   );
 }
 async function applyMigration018(
@@ -2556,9 +2557,10 @@ async function runClubMigrations(env, databaseId) {
     databaseId
   );
 
-  await executeClubStatement(
-    env,
-    databaseId,
+  await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
     `
       INSERT OR IGNORE INTO schema_migrations
       (version, applied_at)
@@ -2567,12 +2569,7 @@ async function runClubMigrations(env, databaseId) {
         '018_planned_agenda_speeches',
         datetime('now')
       )
-    `
-  );
-
-  await executeClubStatement(
-    env,
-    databaseId,
+    `,
     `
       INSERT OR IGNORE INTO schema_migrations
       (version, applied_at)
@@ -2582,7 +2579,8 @@ async function runClubMigrations(env, databaseId) {
         datetime('now')
       )
     `
-  );
+  ]
+);
 
   applied.push("018_planned_agenda_speeches");
   applied.push("019_member_recognition_suffix");
