@@ -917,6 +917,65 @@ async function assignOfficerTerm(
     }
   }, 201);
 }
+
+async function endOfficerTerm(request, env, memberId, assignmentId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const completedAt = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE member_officer_terms
+      SET
+        status = 'COMPLETED',
+        updated_at = ${sqlValue(completedAt)}
+      WHERE id = ${sqlValue(assignmentId)}
+        AND member_id = ${sqlValue(memberId)}
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE members
+      SET
+        active_officer_role = NULL,
+        updated_at = ${sqlValue(completedAt)}
+      WHERE id = ${sqlValue(memberId)}
+    `
+  );
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "END_OFFICER_TERM",
+    entityType: "member",
+    entityId: memberId,
+    details: {
+      clubId: auth.user.club_id,
+      assignmentId
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      memberId,
+      assignmentId,
+      status: "COMPLETED",
+      completedAt
+    }
+  });
+}
+
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -1694,6 +1753,22 @@ if (
     request,
     env,
     officerAssignmentMatch[1]
+  );
+}
+  const endOfficerTermMatch =
+  url.pathname.match(
+    /^\/api\/members\/([^/]+)\/officer-terms\/([^/]+)\/end$/
+  );
+
+if (
+  endOfficerTermMatch &&
+  request.method === "POST"
+) {
+  return endOfficerTerm(
+    request,
+    env,
+    endOfficerTermMatch[1],
+    endOfficerTermMatch[2]
   );
 }
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
