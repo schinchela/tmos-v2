@@ -682,14 +682,38 @@ function renderAwardsPanel(candidates, session) {
             Generate / Refresh Candidates
           </button>
 
-          <button
-            class="primary-btn"
-            id="openVotingBtn"
-            type="button"
-            ${candidates.filter((c) => Number(c.is_excluded) !== 1).length ? "" : "disabled"}
-          >
-            Open Voting
-          </button>
+          ${
+  !session
+    ? `
+      <button
+        class="primary-btn"
+        id="openVotingBtn"
+        type="button"
+        ${candidates.filter((c) => Number(c.is_excluded) !== 1).length ? "" : "disabled"}
+      >
+        Open Voting
+      </button>
+    `
+    : String(session.status || "").toUpperCase() === "OPEN"
+    ? `
+      <button
+        class="ghost-btn danger"
+        id="closeVotingBtn"
+        type="button"
+      >
+        Close Voting
+      </button>
+    `
+    : `
+      <button
+        class="ghost-btn"
+        type="button"
+        disabled
+      >
+        Voting Closed
+      </button>
+    `
+}
         </div>
 
         ${
@@ -1394,10 +1418,39 @@ openVotingBtn?.addEventListener("click", async () => {
       }
     );
 
+    window.__keepMeetingScroll = true;
     await loadMeetingDetails();
   } catch (error) {
     message.textContent = error.message;
     openVotingBtn.disabled = false;
+  }
+});
+
+  const closeVotingBtn = document.getElementById("closeVotingBtn");
+
+closeVotingBtn?.addEventListener("click", async () => {
+  const message = document.getElementById("awardCandidatesMessage");
+
+  if (!confirm("Close voting for this meeting?")) {
+    return;
+  }
+
+  message.textContent = "Closing voting...";
+  closeVotingBtn.disabled = true;
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/voting/close`,
+      {
+        method: "POST"
+      }
+    );
+
+    window.__keepMeetingScroll = true;
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+    closeVotingBtn.disabled = false;
   }
 });
 
