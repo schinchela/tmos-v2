@@ -2,6 +2,7 @@ import { apiRequest } from "../../assets/js/api.js";
 
 let membersCache = [];
 let filteredMembers = [];
+let currentFilter = "ALL";
 
 const PATHWAYS = [
   "Dynamic Leadership",
@@ -56,6 +57,16 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString();
 }
 
+function isRenewalDue(member) {
+  if (!member.renewal_date) return false;
+
+  const renewalDate = new Date(member.renewal_date);
+  const today = new Date();
+  const daysUntilRenewal = Math.ceil((renewalDate - today) / (1000 * 60 * 60 * 24));
+
+  return daysUntilRenewal <= 30;
+}
+
 function formatPathwayLevel(value) {
   const level = Number(value || 0);
 
@@ -84,8 +95,7 @@ function renderMemberRows(members) {
     return `
       <tr>
         <td colspan="8">
-          No members found. Add your first club member to begin tracking attendance,
-          speeches, pathways, officer terms and goals.
+          No members found for this view.
         </td>
       </tr>
     `;
@@ -118,13 +128,77 @@ function renderMemberRows(members) {
 function renderStats() {
   const total = membersCache.length;
   const active = membersCache.filter((member) => member.membership_status === "ACTIVE").length;
+  const archived = membersCache.filter((member) => member.membership_status === "ARCHIVED").length;
   const officers = membersCache.filter((member) => Boolean(member.active_officer_role)).length;
   const pathways = membersCache.filter((member) => Boolean(member.pathway_name)).length;
+  const renewalDue = membersCache.filter(isRenewalDue).length;
 
   document.getElementById("membersTotal").textContent = total;
   document.getElementById("membersActive").textContent = active;
+  document.getElementById("membersArchived").textContent = archived;
   document.getElementById("membersOfficers").textContent = officers;
   document.getElementById("membersPathways").textContent = pathways;
+  document.getElementById("membersRenewalDue").textContent = renewalDue;
+}
+
+function filterMembers() {
+  const searchInput = document.getElementById("memberSearch");
+  const query = String(searchInput?.value || "").toLowerCase().trim();
+
+  let result = [...membersCache];
+
+  if (currentFilter === "ACTIVE") {
+    result = result.filter((member) => member.membership_status === "ACTIVE");
+  }
+
+  if (currentFilter === "ARCHIVED") {
+    result = result.filter((member) => member.membership_status === "ARCHIVED");
+  }
+
+  if (currentFilter === "OFFICERS") {
+    result = result.filter((member) => Boolean(member.active_officer_role));
+  }
+
+  if (currentFilter === "NO_PATHWAY") {
+    result = result.filter((member) => !member.pathway_name);
+  }
+
+  if (currentFilter === "RENEWAL_DUE") {
+    result = result.filter(isRenewalDue);
+  }
+
+  if (query) {
+    result = result.filter((member) => {
+      const haystack = [
+        member.first_name,
+        member.last_name,
+        member.display_name,
+        member.email,
+        member.phone,
+        member.toastmasters_id,
+        member.membership_status,
+        member.membership_type,
+        member.pathway_name,
+        member.active_officer_role
+      ].join(" ").toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }
+
+  filteredMembers = result;
+}
+
+function renderFilteredMembers() {
+  const table = document.getElementById("membersTable");
+  if (!table) return;
+
+  filterMembers();
+  table.innerHTML = renderMemberRows(filteredMembers);
+
+  document.querySelectorAll("[data-member-filter]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.memberFilter === currentFilter);
+  });
 }
 
 export function renderClubMembers() {
@@ -134,7 +208,7 @@ export function renderClubMembers() {
       <h3>Members</h3>
       <p>
         Manage member profiles, Toastmasters IDs, pathways, officer roles and membership
-        lifecycle. This module will feed Meetings, Education, Awards, Attendance and Reports.
+        lifecycle. This module feeds Meetings, Education, Awards, Attendance and Reports.
       </p>
     </section>
 
@@ -150,6 +224,11 @@ export function renderClubMembers() {
       </article>
 
       <article class="card">
+        <span>Archived</span>
+        <strong id="membersArchived">...</strong>
+      </article>
+
+      <article class="card">
         <span>Current Officers</span>
         <strong id="membersOfficers">...</strong>
       </article>
@@ -157,6 +236,11 @@ export function renderClubMembers() {
       <article class="card">
         <span>Pathways Assigned</span>
         <strong id="membersPathways">...</strong>
+      </article>
+
+      <article class="card">
+        <span>Renewal Due</span>
+        <strong id="membersRenewalDue">...</strong>
       </article>
     </section>
 
@@ -283,6 +367,15 @@ export function renderClubMembers() {
         </div>
       </div>
 
+      <div class="top-actions" style="margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="ghost-btn small-btn active" data-member-filter="ALL" type="button">All</button>
+        <button class="ghost-btn small-btn" data-member-filter="ACTIVE" type="button">Active</button>
+        <button class="ghost-btn small-btn" data-member-filter="ARCHIVED" type="button">Archived</button>
+        <button class="ghost-btn small-btn" data-member-filter="OFFICERS" type="button">Officers</button>
+        <button class="ghost-btn small-btn" data-member-filter="NO_PATHWAY" type="button">No Pathway</button>
+        <button class="ghost-btn small-btn" data-member-filter="RENEWAL_DUE" type="button">Renewal Due</button>
+      </div>
+
       <table class="table">
         <thead>
           <tr>
@@ -319,9 +412,7 @@ async function loadMembers() {
   try {
     const response = await apiRequest("/api/members");
     membersCache = response.data || [];
-    filteredMembers = [...membersCache];
-
-    table.innerHTML = renderMemberRows(filteredMembers);
+    renderFilteredMembers();
     renderStats();
   } catch (error) {
     table.innerHTML = `
@@ -332,35 +423,13 @@ async function loadMembers() {
   }
 }
 
-function applySearch() {
-  const searchInput = document.getElementById("memberSearch");
-  const table = document.getElementById("membersTable");
-  const query = String(searchInput?.value || "").toLowerCase().trim();
-
-  if (!table) return;
-
-  if (!query) {
-    filteredMembers = [...membersCache];
-  } else {
-    filteredMembers = membersCache.filter((member) => {
-      const haystack = [
-        member.first_name,
-        member.last_name,
-        member.display_name,
-        member.email,
-        member.phone,
-        member.toastmasters_id,
-        member.membership_status,
-        member.membership_type,
-        member.pathway_name,
-        member.active_officer_role
-      ].join(" ").toLowerCase();
-
-      return haystack.includes(query);
+function bindMemberFilters() {
+  document.querySelectorAll("[data-member-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      currentFilter = button.dataset.memberFilter;
+      renderFilteredMembers();
     });
-  }
-
-  table.innerHTML = renderMemberRows(filteredMembers);
+  });
 }
 
 function bindMemberRowNavigation() {
@@ -386,8 +455,12 @@ export async function initClubMembers() {
   const refreshBtn = document.getElementById("refreshMembersBtn");
   const searchInput = document.getElementById("memberSearch");
 
+  currentFilter = "ALL";
+
   refreshBtn?.addEventListener("click", loadMembers);
-  searchInput?.addEventListener("input", applySearch);
+  searchInput?.addEventListener("input", renderFilteredMembers);
+
+  bindMemberFilters();
   bindMemberRowNavigation();
 
   form?.addEventListener("submit", async (event) => {
@@ -406,6 +479,7 @@ export async function initClubMembers() {
 
       message.textContent = "Member added successfully.";
       form.reset();
+      currentFilter = "ALL";
       await loadMembers();
     } catch (error) {
       message.textContent = error.message;
