@@ -694,8 +694,6 @@ function renderAwardsPanel(candidates) {
                 <thead>
                   <tr>
                     <th>Candidate</th>
-                    <th>Type</th>
-                    <th>Source</th>
                     <th>Status</th>
                     <th>Action</th>
                   </tr>
