@@ -1,4 +1,5 @@
 export function memberDisplayName(member) {
+ console.log("DISPLAY HELPER", member);
   if (!member) return "";
 
   const name =
