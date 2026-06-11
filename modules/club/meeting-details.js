@@ -980,6 +980,46 @@ function renderVotingResultsPanel(results) {
 }
 
 
+function renderCloseMeetingPanel(meeting) {
+  const isCompleted =
+    String(meeting.status || "").toUpperCase() === "COMPLETED";
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Close Meeting</h3>
+        ${
+          isCompleted
+            ? `<span class="badge">COMPLETED</span>`
+            : `<span class="badge warning">Pending</span>`
+        }
+      </div>
+
+      <div class="enterprise-form">
+        <p>
+          Closing the meeting will lock the record and mark this meeting as completed.
+        </p>
+
+        ${
+          isCompleted
+            ? ""
+            : `
+              <button
+                class="primary-btn"
+                id="closeMeetingBtn"
+                type="button"
+              >
+                Close Meeting
+              </button>
+            `
+        }
+
+        <p class="form-message" id="closeMeetingMessage"></p>
+      </div>
+    </section>
+  `;
+}
+
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -1021,10 +1061,7 @@ function renderMeetingCommandCenter(data) {
     
     ${renderAwardsPanel(awardCandidates, votingSession, votingResults)}
 
-    ${emptyPanel(
-      "Close Meeting",
-      "Closing the meeting will lock the record and update attendance, speeches, awards and member history."
-    )}
+    ${renderCloseMeetingPanel(meeting)}
   `;
 }
 
@@ -1695,6 +1732,29 @@ document.getElementById("copyVotingLinkBtn")?.addEventListener("click", async ()
     );
 
     message.textContent = "Awards finalized successfully.";
+    window.__keepMeetingScroll = true;
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+  document.getElementById("closeMeetingBtn")?.addEventListener("click", async () => {
+  const message = document.getElementById("closeMeetingMessage");
+
+  if (!confirm("Close this meeting? This will mark it as completed.")) {
+    return;
+  }
+
+  message.textContent = "Closing meeting...";
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/close`,
+      {
+        method: "POST"
+      }
+    );
+
     window.__keepMeetingScroll = true;
     await loadMeetingDetails();
   } catch (error) {
