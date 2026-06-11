@@ -302,39 +302,39 @@ async function loadConfiguration(configType) {
     const response = await apiRequest(`/api/configuration/${configType}`);
     const rows = response.data || [];
 
+    const title = configType.replaceAll("_", " ");
+
     container.innerHTML = `
       <div class="panel-header">
-        <h3>${escapeHtml(configType.replaceAll("_", " "))}</h3>
-        <span class="badge">Editable</span>
+        <h3>${escapeHtml(title)}</h3>
+        <span class="badge">Club Customizable</span>
       </div>
 
       <div class="enterprise-form">
         <p>
-          Enable, disable, rename, or reorder items. Future meetings will use active items only.
+          Choose which items your club uses and rename them if needed.
         </p>
       </div>
 
-      <table class="table">
+      <table class="table config-table">
         <thead>
           <tr>
-            <th>Enabled</th>
+            <th style="width:120px;">Enabled</th>
             <th>Name</th>
-            <th>Key</th>
-            <th>Order</th>
-            <th>Save</th>
           </tr>
         </thead>
 
         <tbody>
           ${
             rows.length
-              ? rows.map(row => `
+              ? rows.map((row) => `
                 <tr data-config-row="${escapeHtml(row.id)}">
                   <td>
-                    <select data-config-active>
-                      <option value="1" ${Number(row.is_active) === 1 ? "selected" : ""}>Enabled</option>
-                      <option value="0" ${Number(row.is_active) === 0 ? "selected" : ""}>Disabled</option>
-                    </select>
+                    <input
+                      type="checkbox"
+                      data-config-active
+                      ${Number(row.is_active) === 1 ? "checked" : ""}
+                    />
                   </td>
 
                   <td>
@@ -343,47 +343,32 @@ async function loadConfiguration(configType) {
                       value="${escapeHtml(row.config_name)}"
                     />
                   </td>
-
-                  <td>
-                    <input
-                      data-config-key
-                      value="${escapeHtml(row.config_key)}"
-                    />
-                  </td>
-
-                  <td>
-                    <input
-                      data-config-order
-                      type="number"
-                      value="${escapeHtml(row.sort_order || 999)}"
-                    />
-                  </td>
-
-                  <td>
-                    <button
-                      class="primary-btn small-btn"
-                      data-save-config="${escapeHtml(row.id)}"
-                      data-config-type="${escapeHtml(configType)}"
-                      type="button"
-                    >
-                      Save
-                    </button>
-                  </td>
                 </tr>
               `).join("")
               : `
                 <tr>
-                  <td colspan="5">No configuration items found.</td>
+                  <td colspan="2">No configuration items found.</td>
                 </tr>
               `
           }
         </tbody>
       </table>
 
+      <div class="top-actions" style="margin-top:16px;">
+        <button
+          class="primary-btn"
+          id="saveConfigurationBtn"
+          data-config-type="${escapeHtml(configType)}"
+          type="button"
+        >
+          Save Changes
+        </button>
+      </div>
+
       <p class="form-message" id="configurationMessage"></p>
     `;
 
-    bindConfigurationSaveButtons();
+    bindConfigurationSaveButton(configType, rows);
   } catch (error) {
     container.innerHTML = `
       <div class="enterprise-form">
@@ -393,40 +378,41 @@ async function loadConfiguration(configType) {
   }
 }
 
-function bindConfigurationSaveButtons() {
-  document.querySelectorAll("[data-save-config]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const row = button.closest("[data-config-row]");
-      const message = document.getElementById("configurationMessage");
-      const configType = button.dataset.configType;
-      const configId = button.dataset.saveConfig;
+function bindConfigurationSaveButton(configType, rows) {
+  const saveButton = document.getElementById("saveConfigurationBtn");
+  const message = document.getElementById("configurationMessage");
 
-      const payload = {
-        configName: row.querySelector("[data-config-name]").value,
-        configKey: row.querySelector("[data-config-key]").value,
-        isActive: row.querySelector("[data-config-active]").value === "1",
-        sortOrder: row.querySelector("[data-config-order]").value,
-        configValue: {}
-      };
+  saveButton?.addEventListener("click", async () => {
+    const updateRows = [...document.querySelectorAll("[data-config-row]")];
 
-      button.disabled = true;
-      button.textContent = "Saving...";
-      message.textContent = "Saving configuration...";
+    saveButton.disabled = true;
+    saveButton.textContent = "Saving...";
+    message.textContent = "Saving configuration...";
 
-      try {
+    try {
+      for (const rowElement of updateRows) {
+        const configId = rowElement.dataset.configRow;
+        const original = rows.find((row) => row.id === configId);
+
         await apiRequest(`/api/configuration/${configType}/${configId}`, {
           method: "PUT",
-          body: payload
+          body: {
+            configName: rowElement.querySelector("[data-config-name]").value,
+            configKey: original.config_key,
+            isActive: rowElement.querySelector("[data-config-active]").checked,
+            sortOrder: original.sort_order,
+            configValue: JSON.parse(original.config_value_json || "{}")
+          }
         });
-
-        message.textContent = "Configuration saved successfully.";
-        await loadConfiguration(configType);
-      } catch (error) {
-        message.textContent = error.message;
-        button.disabled = false;
-        button.textContent = "Save";
       }
-    });
+
+      message.textContent = "Configuration saved successfully.";
+      await loadConfiguration(configType);
+    } catch (error) {
+      message.textContent = error.message;
+      saveButton.disabled = false;
+      saveButton.textContent = "Save Changes";
+    }
   });
 }
 
