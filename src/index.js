@@ -3288,7 +3288,169 @@ function votingSlugFromDate(meetingDate, suffix = 0) {
   return suffix > 0 ? `${base}-${suffix}` : base;
 }
 
+async function getPublicVotePage(request, env, publicToken) {
+  const sessionResult = await env.DB.prepare(`
+    SELECT cd.database_identifier
+    FROM club_databases cd
+    JOIN clubs c ON c.id = cd.club_id
+    WHERE c.status = 'ACTIVE'
+  `).all();
 
+  const clubDatabases = sessionResult.results || [];
+
+  for (const db of clubDatabases) {
+    const voteSessionResult = await runCloudflareD1Query(
+      env,
+      db.database_identifier,
+      `
+        SELECT *
+        FROM meeting_vote_sessions
+        WHERE public_token = ${sqlValue(publicToken)}
+        LIMIT 1
+      `
+    );
+
+    const voteSession =
+      voteSessionResult?.[0]?.results?.[0] ||
+      voteSessionResult?.results?.[0];
+
+    if (!voteSession) continue;
+
+    const candidatesResult = await runCloudflareD1Query(
+      env,
+      db.database_identifier,
+      `
+        SELECT *
+        FROM meeting_award_candidates
+        WHERE meeting_id = ${sqlValue(voteSession.meeting_id)}
+          AND is_excluded = 0
+        ORDER BY award_name ASC, participant_name ASC
+      `
+    );
+
+    const candidates =
+      candidatesResult?.[0]?.results ||
+      candidatesResult?.results ||
+      [];
+
+    return json({
+      success: true,
+      data: {
+        session: voteSession,
+        candidates
+      }
+    });
+  }
+
+  return json({
+    success: false,
+    error: "Voting link not found"
+  }, 404);
+}
+
+async function submitPublicVote(request, env, publicToken) {
+  const body = await request.json();
+
+  const votes = Array.isArray(body.votes) ? body.votes : [];
+
+  if (!votes.length) {
+    return json({
+      success: false,
+      error: "No votes submitted"
+    }, 400);
+  }
+
+  const clubResult = await env.DB.prepare(`
+    SELECT cd.database_identifier
+    FROM club_databases cd
+    JOIN clubs c ON c.id = cd.club_id
+    WHERE c.status = 'ACTIVE'
+  `).all();
+
+  const clubDatabases = clubResult.results || [];
+
+  for (const db of clubDatabases) {
+    const sessionResult = await runCloudflareD1Query(
+      env,
+      db.database_identifier,
+      `
+        SELECT *
+        FROM meeting_vote_sessions
+        WHERE public_token = ${sqlValue(publicToken)}
+          AND status = 'OPEN'
+        LIMIT 1
+      `
+    );
+
+    const session =
+      sessionResult?.[0]?.results?.[0] ||
+      sessionResult?.results?.[0];
+
+    if (!session) continue;
+
+    for (const vote of votes) {
+      const candidateResult = await runCloudflareD1Query(
+        env,
+        db.database_identifier,
+        `
+          SELECT *
+          FROM meeting_award_candidates
+          WHERE id = ${sqlValue(vote.candidateId)}
+            AND meeting_id = ${sqlValue(session.meeting_id)}
+            AND award_key = ${sqlValue(vote.awardKey)}
+            AND is_excluded = 0
+          LIMIT 1
+        `
+      );
+
+      const candidate =
+        candidateResult?.[0]?.results?.[0] ||
+        candidateResult?.results?.[0];
+
+      if (!candidate) continue;
+
+      await runCloudflareD1Query(
+        env,
+        db.database_identifier,
+        `
+          INSERT INTO meeting_votes (
+            id,
+            meeting_id,
+            vote_session_id,
+            award_key,
+            award_name,
+            candidate_id,
+            candidate_name,
+            voter_name,
+            voter_email,
+            created_at
+          )
+          VALUES (
+            ${sqlValue(id("mvote"))},
+            ${sqlValue(session.meeting_id)},
+            ${sqlValue(session.id)},
+            ${sqlValue(candidate.award_key)},
+            ${sqlValue(candidate.award_name)},
+            ${sqlValue(candidate.id)},
+            ${sqlValue(candidate.participant_name)},
+            NULL,
+            NULL,
+            ${sqlValue(now())}
+          )
+        `
+      );
+    }
+
+    return json({
+      success: true
+    });
+  }
+
+  return json({
+    success: false,
+    error: "Voting is closed or link not found"
+  }, 404);
+}
 
 
 async function runClubMigrations(env, databaseId) {
@@ -4181,6 +4343,10 @@ async function handleRequest(request, env) {
   if (openVotingMatch && request.method === "POST") { return openVoting(request,env,openVotingMatch[1]);}
   const votingSessionMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting$/);
   if (votingSessionMatch && request.method === "GET") { return getVotingSession(request,env,votingSessionMatch[1]);}
+  const publicVoteMatch = url.pathname.match(/^\/api\/vote\/([^/]+)$/);
+  if (publicVoteMatch && request.method === "GET") { return getPublicVotePage(request,env,publicVoteMatch[1]);}
+  if (publicVoteMatch && request.method === "POST") { return submitPublicVote(request,env,publicVoteMatch[1]);}
+
 
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
