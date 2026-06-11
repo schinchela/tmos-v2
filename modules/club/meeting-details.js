@@ -997,12 +997,24 @@ function renderCloseMeetingPanel(meeting) {
 
       <div class="enterprise-form">
         <p>
-          Closing the meeting will lock the record and mark this meeting as completed.
+          ${
+            isCompleted
+              ? "This meeting is completed. Reopen it only if corrections are required."
+              : "Closing the meeting will lock the record and mark this meeting as completed."
+          }
         </p>
 
         ${
           isCompleted
-            ? ""
+            ? `
+              <button
+                class="ghost-btn warning"
+                id="reopenMeetingBtn"
+                type="button"
+              >
+                Reopen Meeting
+              </button>
+            `
             : `
               <button
                 class="primary-btn"
@@ -1761,7 +1773,31 @@ document.getElementById("copyVotingLinkBtn")?.addEventListener("click", async ()
     message.textContent = error.message;
   }
 });
+document.getElementById("reopenMeetingBtn")?.addEventListener("click", async () => {
+  const message = document.getElementById("closeMeetingMessage");
+
+  if (!confirm("Reopen this meeting for corrections?")) {
+    return;
+  }
+
+  message.textContent = "Reopening meeting...";
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/reopen`,
+      {
+        method: "POST"
+      }
+    );
+
+    window.__keepMeetingScroll = true;
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
 }
+
 
 
 export async function initMeetingDetails() {
