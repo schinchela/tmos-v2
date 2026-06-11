@@ -382,6 +382,38 @@ function renderOfficerAssignmentPanel() {
     </section>
   `;
 }
+
+function renderMemberSummaryCards(data) {
+  return `
+    <section class="grid">
+      <article class="card">
+        <span>Officer Terms</span>
+        <strong>${escapeHtml((data.officerTerms || []).length)}</strong>
+      </article>
+
+      <article class="card">
+        <span>Speeches</span>
+        <strong>${escapeHtml((data.speeches || []).length)}</strong>
+      </article>
+
+      <article class="card">
+        <span>Attendance Records</span>
+        <strong>${escapeHtml((data.attendance || []).length)}</strong>
+      </article>
+
+      <article class="card">
+        <span>Awards</span>
+        <strong>${escapeHtml((data.awards || []).length)}</strong>
+      </article>
+
+      <article class="card">
+        <span>Goals</span>
+        <strong>${escapeHtml((data.goals || []).length)}</strong>
+      </article>
+    </section>
+  `;
+}
+
 function renderMember360(data) {
   const member = data.member;
 
@@ -452,7 +484,8 @@ function renderMember360(data) {
         <strong>${escapeHtml(member.active_officer_role || "None")}</strong>
       </article>
     </section>
-
+    ${renderMemberSummaryCards(data)}
+    
     ${renderProfile(member)}
 
     ${renderOfficerAssignmentPanel()}
