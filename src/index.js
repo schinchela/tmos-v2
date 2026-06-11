@@ -2794,6 +2794,248 @@ async function deleteTableTopicParticipant(request, env, meetingId, topicId) {
     success: true
   });
 }
+
+function parseJsonSafe(value, fallback = {}) {
+  try {
+    return JSON.parse(value || "{}");
+  } catch (_) {
+    return fallback;
+  }
+}
+
+async function listAwardCandidates(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_award_candidates
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY award_name ASC, participant_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function generateAwardCandidates(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const timestamp = now();
+
+  const awardsResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM club_configuration
+      WHERE config_type = 'MEETING_AWARD'
+        AND is_active = 1
+      ORDER BY sort_order ASC, config_name ASC
+    `
+  );
+
+  const awards =
+    awardsResult?.[0]?.results ||
+    awardsResult?.results ||
+    [];
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_award_candidates
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  let inserted = 0;
+
+  for (const award of awards) {
+    const config = parseJsonSafe(award.config_value_json);
+    const source = config.candidateSource || "ROLES";
+    const allowedRoleCodes = config.allowedRoleCodes || [];
+
+    let candidates = [];
+
+    if (source === "SPEECHES") {
+      const result = await executeClubQuery(
+        env,
+        auth.user.club_id,
+        `
+          SELECT
+            id AS source_record_id,
+            planned_speaker_type AS participant_type,
+            planned_speaker_id AS participant_id,
+            planned_speaker_name AS participant_name,
+            planned_speaker_email AS participant_email
+          FROM meeting_speeches
+          WHERE meeting_id = ${sqlValue(meetingId)}
+            AND planned_speaker_name IS NOT NULL
+            AND planned_speaker_name != ''
+          ORDER BY created_at ASC
+        `
+      );
+
+      candidates =
+        result?.[0]?.results ||
+        result?.results ||
+        [];
+    }
+
+    if (source === "ROLES") {
+      const roleFilter = allowedRoleCodes.length
+        ? `AND role_code IN (${allowedRoleCodes.map(sqlValue).join(", ")})`
+        : "";
+
+      const result = await executeClubQuery(
+        env,
+        auth.user.club_id,
+        `
+          SELECT
+            id AS source_record_id,
+            planned_participant_type AS participant_type,
+            planned_participant_id AS participant_id,
+            planned_display_name AS participant_name,
+            planned_email AS participant_email
+          FROM meeting_role_assignments
+          WHERE meeting_id = ${sqlValue(meetingId)}
+            AND planned_display_name IS NOT NULL
+            AND planned_display_name != ''
+            ${roleFilter}
+          ORDER BY sequence_order ASC, role_name ASC
+        `
+      );
+
+      candidates =
+        result?.[0]?.results ||
+        result?.results ||
+        [];
+    }
+
+    if (source === "TABLE_TOPICS") {
+      const result = await executeClubQuery(
+        env,
+        auth.user.club_id,
+        `
+          SELECT
+            id AS source_record_id,
+            participant_type,
+            participant_id,
+            participant_name,
+            participant_email
+          FROM meeting_table_topics
+          WHERE meeting_id = ${sqlValue(meetingId)}
+            AND participant_name IS NOT NULL
+            AND participant_name != ''
+          ORDER BY participant_name ASC
+        `
+      );
+
+      candidates =
+        result?.[0]?.results ||
+        result?.results ||
+        [];
+    }
+
+    const seen = new Set();
+
+    for (const candidate of candidates) {
+      const dedupeKey = [
+        award.config_key,
+        candidate.participant_type || "",
+        candidate.participant_id || "",
+        candidate.participant_name || ""
+      ].join("|");
+
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      await executeClubStatement(
+        env,
+        auth.user.club_id,
+        `
+          INSERT INTO meeting_award_candidates (
+            id,
+            meeting_id,
+            award_config_id,
+            award_key,
+            award_name,
+            participant_type,
+            participant_id,
+            participant_name,
+            participant_email,
+            source_type,
+            source_record_id,
+            is_excluded,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            ${sqlValue(id("cand"))},
+            ${sqlValue(meetingId)},
+            ${sqlValue(award.id)},
+            ${sqlValue(award.config_key)},
+            ${sqlValue(award.config_name)},
+            ${sqlValue(candidate.participant_type)},
+            ${sqlValue(candidate.participant_id)},
+            ${sqlValue(candidate.participant_name)},
+            ${sqlValue(candidate.participant_email)},
+            ${sqlValue(source)},
+            ${sqlValue(candidate.source_record_id)},
+            0,
+            ${sqlValue(timestamp)},
+            ${sqlValue(timestamp)}
+          )
+        `
+      );
+
+      inserted += 1;
+    }
+  }
+
+  return json({
+    success: true,
+    data: {
+      inserted
+    }
+  });
+}
+
+async function updateAwardCandidate(request, env, meetingId, candidateId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meeting_award_candidates
+      SET
+        is_excluded = ${body.isExcluded ? 1 : 0},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(candidateId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
+
+
+
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -3651,7 +3893,14 @@ async function handleRequest(request, env) {
   if (tableTopicsMatch && request.method === "POST") { return addTableTopicParticipant(request, env, tableTopicsMatch[1]);}
   const tableTopicDeleteMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/table-topics\/([^/]+)$/);
   if (tableTopicDeleteMatch && request.method === "DELETE") { return deleteTableTopicParticipant(request,env,tableTopicDeleteMatch[1],tableTopicDeleteMatch[2]);}
-  
+  const awardCandidatesGenerateMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/award-candidates\/generate$/);
+  if (awardCandidatesGenerateMatch && request.method === "POST") {  return generateAwardCandidates(request,env,awardCandidatesGenerateMatch[1]);}
+  const awardCandidatesMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/award-candidates$/);
+  if (awardCandidatesMatch && request.method === "GET") { return listAwardCandidates(request,env,awardCandidatesMatch[1]);}
+  const awardCandidateUpdateMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/award-candidates\/([^/]+)$/);
+  if (awardCandidateUpdateMatch && request.method === "PUT") { return updateAwardCandidate(request,env,awardCandidateUpdateMatch[1],awardCandidateUpdateMatch[2]);}
+
+
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
