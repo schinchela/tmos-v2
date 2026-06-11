@@ -550,7 +550,96 @@ function renderAgendaSpeechesPanel(speeches) {
     </section>
   `;
 }
+function renderTableTopicsPanel(tableTopics, participants) {
+  const usedRefs = new Set(
+    tableTopics.map((row) => row.participant_ref_id)
+  );
 
+  const availableParticipants = participants.filter(
+    (participant) => !usedRefs.has(participant.id)
+  );
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Table Topics</h3>
+        <span class="badge">${tableTopics.length} Participants</span>
+      </div>
+
+      <form class="enterprise-form" id="addTableTopicForm">
+        <div class="form-grid">
+          <label>
+            Participant
+            <select id="tableTopicParticipantSelect" required>
+              <option value="">Select attendee</option>
+              ${availableParticipants.map((participant) => `
+                <option
+                  value="${escapeHtml(participant.id)}"
+                  data-type="${escapeHtml(participant.participant_type || "")}"
+                  data-participant-id="${escapeHtml(participant.participant_id || "")}"
+                  data-name="${escapeHtml(participant.display_name || "")}"
+                  data-email="${escapeHtml(participant.email || "")}"
+                >
+                  ${escapeHtml(participant.display_name || "-")}
+                </option>
+              `).join("")}
+            </select>
+          </label>
+        </div>
+
+        <button
+          class="primary-btn"
+          id="addTableTopicBtn"
+          type="submit"
+          ${availableParticipants.length ? "" : "disabled"}
+        >
+          Add Table Topics Participant
+        </button>
+
+        <p class="form-message" id="tableTopicMessage"></p>
+      </form>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Participant</th>
+            <th>Type</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${
+            tableTopics.length
+              ? tableTopics.map((row) => `
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(row.participant_name || "-")}</strong><br>
+                    <small>${escapeHtml(row.participant_email || "")}</small>
+                  </td>
+                  <td>${escapeHtml(row.participant_type || "-")}</td>
+                  <td>
+                    <button
+                      class="ghost-btn small-btn danger"
+                      data-delete-table-topic="${escapeHtml(row.id)}"
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              `).join("")
+              : `
+                <tr>
+                  <td colspan="3">No Table Topics participants added yet.</td>
+                </tr>
+              `
+          }
+        </tbody>
+      </table>
+    </section>
+  `;
+}
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -587,11 +676,9 @@ function renderMeetingCommandCenter(data) {
 
     ${renderAgendaSpeechesPanel(data.speeches || [])}
 
-    ${emptyPanel(
-      "Table Topics",
-      "Assign table topics responses to anyone present: members, guests or visitors."
-    )}
+    ${renderTableTopicsPanel(data.tableTopics || [], data.participants || [])}
 
+    
     ${emptyPanel(
       "Awards",
       "Record Best Speaker, Best Evaluator, Best Table Topics and other meeting awards."
