@@ -975,6 +975,61 @@ async function endOfficerTerm(request, env, memberId, assignmentId) {
   });
 }
 
+async function archiveMember(request, env, memberId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json(
+      { success: false, error: "No club assigned to this user" },
+      400
+    );
+  }
+
+  const body =
+    request.method === "POST"
+      ? await request.json()
+      : {};
+
+  const status =
+    body.status === "ACTIVE"
+      ? "ACTIVE"
+      : "ARCHIVED";
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE members
+      SET
+        membership_status = ${sqlValue(status)},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(memberId)}
+    `
+  );
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action:
+      status === "ACTIVE"
+        ? "REINSTATE_MEMBER"
+        : "ARCHIVE_MEMBER",
+    entityType: "member",
+    entityId: memberId,
+    details: {
+      clubId: auth.user.club_id,
+      status
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      memberId,
+      status
+    }
+  });
+}
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -1769,6 +1824,21 @@ if (
     env,
     endOfficerTermMatch[1],
     endOfficerTermMatch[2]
+  );
+}
+  const archiveMemberMatch =
+  url.pathname.match(
+    /^\/api\/members\/([^/]+)\/archive$/
+  );
+
+if (
+  archiveMemberMatch &&
+  request.method === "POST"
+) {
+  return archiveMember(
+    request,
+    env,
+    archiveMemberMatch[1]
   );
 }
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
