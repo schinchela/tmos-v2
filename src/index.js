@@ -407,6 +407,23 @@ const CLUB_MIGRATIONS = [
     `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
      VALUES ('017_club_configuration', datetime('now'))`
   ]
+},
+  {
+  version: "018_planned_agenda_speeches",
+  sql: [
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_type TEXT`,
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_id TEXT`,
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_name TEXT`,
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_speaker_email TEXT`,
+
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_type TEXT`,
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_id TEXT`,
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_name TEXT`,
+    `ALTER TABLE meeting_speeches ADD COLUMN planned_evaluator_email TEXT`,
+
+    `INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+     VALUES ('018_planned_agenda_speeches', datetime('now'))`
+  ]
 }
 ];
 
