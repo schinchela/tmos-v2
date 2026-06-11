@@ -471,13 +471,32 @@ function renderMember360(data) {
 
       <article class="card">
         <span>Pathway</span>
-        <strong>${escapeHtml(member.pathway_name || "Not Set")}</strong>
+        <strong>${escapeHtml(member.pathway_name || "No Pathway Assigned")}</strong>
       </article>
 
       <article class="card">
-        <span>Pathway Level</span>
-        <strong>${escapeHtml(member.pathway_level ?? 0)}</strong>
-      </article>
+  <span>Pathway Level</span>
+  <strong>
+    ${
+      Number(member.pathway_level || 0) === 0
+        ? "Not Started"
+        : Number(member.pathway_level || 0) === 6
+        ? "Completed"
+        : `Level ${member.pathway_level}`
+    }
+  </strong>
+</article><article class="card">
+  <span>Pathway Level</span>
+  <strong>
+    ${
+      Number(member.pathway_level || 0) === 0
+        ? "Not Started"
+        : Number(member.pathway_level || 0) === 6
+        ? "Completed"
+        : `Level ${member.pathway_level}`
+    }
+  </strong>
+</article>
 
       <article class="card">
         <span>Officer Role</span>
