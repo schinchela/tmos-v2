@@ -1,4 +1,6 @@
 import { apiRequest } from "../../assets/js/api.js";
+import { memberDisplayName } from "../../assets/js/member-display.js";
+
 
 let currentMemberId = null;
 let member360Data = null;
@@ -217,7 +219,7 @@ function renderProfile(member) {
         <div class="form-grid">
           <div class="card">
             <span>Name</span>
-            <strong>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong>
+            <strong>${escapeHtml(memberDisplayName(member) || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</strong>
           </div>
 
           <div class="card">
@@ -500,7 +502,7 @@ function renderMember360(data) {
   return `
     <section class="hero">
       <p class="eyebrow">Member 360</p>
-      <h3>${escapeHtml(member.display_name || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</h3>
+      <h3>${escapeHtml(memberDisplayName(member) || `${member.first_name || ""} ${member.last_name || ""}`.trim())}</h3>
       <p>
         Complete member profile across membership, Pathways, speeches, attendance,
         awards, goals and officer leadership history.
