@@ -741,3 +741,27 @@ button:active,
 .checkbox-row input {
   width: auto;
 }
+input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.checkbox-row span {
+  font-weight: 500;
+}
+
+.checkbox-grid {
+  display: grid;
+  gap: 8px;
+}
