@@ -947,6 +947,191 @@ async function updateMember(request, env, memberId) {
     }
   });
 }
+
+async function listMemberPathways(request, env, memberId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM member_pathways
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY
+        CASE status
+          WHEN 'ACTIVE' THEN 1
+          WHEN 'COMPLETED' THEN 2
+          ELSE 3
+        END,
+        created_at DESC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function createMemberPathway(request, env, memberId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const body = await request.json();
+
+  const pathwayName = String(body.pathwayName || "").trim();
+
+  if (!pathwayName) {
+    return json({ success: false, error: "Pathway name is required" }, 400);
+  }
+
+  const pathwayId = id("pathway");
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO member_pathways (
+        id,
+        member_id,
+        pathway_name,
+        current_level,
+        status,
+        started_at,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(pathwayId)},
+        ${sqlValue(memberId)},
+        ${sqlValue(pathwayName)},
+        ${Number(body.currentLevel || 0)},
+        ${sqlValue(body.status || "ACTIVE")},
+        ${sqlValue(body.startedAt || timestamp)},
+        ${sqlValue(body.notes)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+    `
+  );
+
+  await syncMemberEducationSummary(env, auth.user.club_id, memberId);
+
+  return json({
+    success: true,
+    data: {
+      id: pathwayId
+    }
+  }, 201);
+}
+
+async function updateMemberPathwayLevel(request, env, memberId, pathwayId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const body = await request.json();
+
+  const completedLevel = Math.max(
+    0,
+    Math.min(Number(body.completedLevel || 0), 5)
+  );
+
+  const timestamp = now();
+
+  const levelColumn =
+    completedLevel >= 1 && completedLevel <= 5
+      ? `level_${completedLevel}_completed_at`
+      : null;
+
+  const isCompleted = completedLevel >= 5;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE member_pathways
+      SET
+        current_level = ${completedLevel},
+        ${levelColumn ? `${levelColumn} = ${sqlValue(body.completedAt || timestamp)},` : ""}
+        status = ${sqlValue(isCompleted ? "COMPLETED" : "ACTIVE")},
+        completed_at = ${
+          isCompleted
+            ? sqlValue(body.completedAt || timestamp)
+            : "completed_at"
+        },
+        updated_at = ${sqlValue(timestamp)}
+      WHERE id = ${sqlValue(pathwayId)}
+        AND member_id = ${sqlValue(memberId)}
+    `
+  );
+
+  await syncMemberEducationSummary(env, auth.user.club_id, memberId);
+
+  return json({
+    success: true,
+    data: {
+      memberId,
+      pathwayId,
+      completedLevel,
+      status: isCompleted ? "COMPLETED" : "ACTIVE"
+    }
+  });
+}
+async function syncMemberEducationSummary(env, clubId, memberId) {
+  const result = await executeClubQuery(
+    env,
+    clubId,
+    `
+      SELECT *
+      FROM member_pathways
+      WHERE member_id = ${sqlValue(memberId)}
+      ORDER BY
+        CASE status
+          WHEN 'ACTIVE' THEN 1
+          WHEN 'COMPLETED' THEN 2
+          ELSE 3
+        END,
+        updated_at DESC
+    `
+  );
+
+  const pathways = result?.[0]?.results || result?.results || [];
+
+  const active =
+    pathways.find((p) => p.status === "ACTIVE") ||
+    pathways[0];
+
+  await executeClubStatement(
+    env,
+    clubId,
+    `
+      UPDATE members
+      SET
+        pathway_name = ${sqlValue(active?.pathway_name || null)},
+        pathway_level = ${Number(active?.current_level || 0)},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(memberId)}
+    `
+  );
+}
+
+
 async function getClubSettings(request, env) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
@@ -2158,6 +2343,8 @@ async function updateAgendaSpeech(request, env, meetingId, speechId) {
   });
 }
 
+
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -2924,6 +3111,11 @@ async function handleRequest(request, env) {
   if (agendaSpeechesMatch && request.method === "POST") { return createAgendaSpeech(request, env, agendaSpeechesMatch[1]);}
   const agendaSpeechUpdateMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-speeches\/([^/]+)$/);
   if (agendaSpeechUpdateMatch && request.method === "PUT") { return updateAgendaSpeech(request,env,agendaSpeechUpdateMatch[1],agendaSpeechUpdateMatch[2]);}
+  const memberPathwaysMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/pathways$/);
+  if (memberPathwaysMatch && request.method === "GET") { return listMemberPathways(request, env, memberPathwaysMatch[1]);}
+  if (memberPathwaysMatch && request.method === "POST") { return createMemberPathway(request, env, memberPathwaysMatch[1]);}
+  const memberPathwayLevelMatch =  url.pathname.match(/^\/api\/members\/([^/]+)\/pathways\/([^/]+)\/level$/);
+  if (memberPathwayLevelMatch && request.method === "PUT") { return updateMemberPathwayLevel(request,env,memberPathwayLevelMatch[1],memberPathwayLevelMatch[2]);}
   
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
