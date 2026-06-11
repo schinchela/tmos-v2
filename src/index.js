@@ -1001,68 +1001,53 @@ async function updateClubSettings(request, env) {
     );
   }
 
-  const officerTermCycle =
-    body.officerTermCycle || "YEARLY";
+  const officerTermCycle = body.officerTermCycle || "YEARLY";
   const regularMeetingDay = body.regularMeetingDay || "";
-const regularMeetingTime = body.regularMeetingTime || "";
+  const regularMeetingTime = body.regularMeetingTime || "";
+  const defaultMeetingMode = body.defaultMeetingMode || "PHYSICAL";
+  const defaultVenue = body.defaultVenue || "";
+  const defaultOnlineLink = body.defaultOnlineLink || "";
 
-  
-  await executeClubStatement(
-    env,
-    auth.user.club_id,
-    `
-      INSERT OR REPLACE INTO club_settings (
-        key,
-        value,
-        updated_at
-      )
-      VALUES (
-        'officer_term_cycle',
-        ${sqlValue(officerTermCycle)},
-        ${sqlValue(now())}
-      )
-    `
-  );
-await executeClubStatement(
-  env,
-  auth.user.club_id,
-  `
-    INSERT OR REPLACE INTO club_settings (
-      key,
-      value,
-      updated_at
-    )
-    VALUES (
-      'regular_meeting_day',
-      ${sqlValue(regularMeetingDay)},
-      ${sqlValue(now())}
-    )
-  `
-);
+  const settingsToSave = [
+    ["officer_term_cycle", officerTermCycle],
+    ["regular_meeting_day", regularMeetingDay],
+    ["regular_meeting_time", regularMeetingTime],
+    ["default_meeting_mode", defaultMeetingMode],
+    ["default_venue", defaultVenue],
+    ["default_online_link", defaultOnlineLink]
+  ];
 
-await executeClubStatement(
-  env,
-  auth.user.club_id,
-  `
-    INSERT OR REPLACE INTO club_settings (
-      key,
-      value,
-      updated_at
-    )
-    VALUES (
-      'regular_meeting_time',
-      ${sqlValue(regularMeetingTime)},
-      ${sqlValue(now())}
-    )
-  `
-);
+  for (const [key, value] of settingsToSave) {
+    await executeClubStatement(
+      env,
+      auth.user.club_id,
+      `
+        INSERT OR REPLACE INTO club_settings (
+          key,
+          value,
+          updated_at
+        )
+        VALUES (
+          ${sqlValue(key)},
+          ${sqlValue(value)},
+          ${sqlValue(now())}
+        )
+      `
+    );
+  }
+
   await writeAudit(env, {
     userId: auth.user.id,
     action: "UPDATE_CLUB_SETTINGS",
     entityType: "club_settings",
     details: {
       clubId: auth.user.club_id,
-      officerTermCycle
+      officerTermCycle,
+      regularMeetingDay,
+      regularMeetingTime,
+      defaultMeetingMode,
+      defaultVenue,
+      defaultOnlineLink
     }
   });
 
@@ -1071,39 +1056,12 @@ await executeClubStatement(
     data: {
       officerTermCycle,
       regularMeetingDay,
-      regularMeetingTime
+      regularMeetingTime,
+      defaultMeetingMode,
+      defaultVenue,
+      defaultOnlineLink
     }
   });
-const defaultMeetingMode = body.defaultMeetingMode || "PHYSICAL";
-const defaultVenue = body.defaultVenue || "";
-const defaultOnlineLink = body.defaultOnlineLink || "";
-  await executeClubStatement(
-  env,
-  auth.user.club_id,
-  `
-    INSERT OR REPLACE INTO club_settings (key, value, updated_at)
-    VALUES ('default_meeting_mode', ${sqlValue(defaultMeetingMode)}, ${sqlValue(now())})
-  `
-);
-
-await executeClubStatement(
-  env,
-  auth.user.club_id,
-  `
-    INSERT OR REPLACE INTO club_settings (key, value, updated_at)
-    VALUES ('default_venue', ${sqlValue(defaultVenue)}, ${sqlValue(now())})
-  `
-);
-
-await executeClubStatement(
-  env,
-  auth.user.club_id,
-  `
-    INSERT OR REPLACE INTO club_settings (key, value, updated_at)
-    VALUES ('default_online_link', ${sqlValue(defaultOnlineLink)}, ${sqlValue(now())})
-  `
-);
-  
 }
 
 async function listOfficerTerms(request, env) {
