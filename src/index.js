@@ -2261,7 +2261,7 @@ async function handleRequest(request, env) {
   const endOfficerTermMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/officer-terms\/([^/]+)\/end$/);
   if (endOfficerTermMatch &&  request.method === "POST") { return endOfficerTerm(request,env,endOfficerTermMatch[1],endOfficerTermMatch[2]);}
   const archiveMemberMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/archive$/);
-  if (archiveMemberMatch && request.method === "POST") { return archiveMember(request,env,archiveMemberMatch[1]);
+  if (archiveMemberMatch && request.method === "POST") { return archiveMember(request,env,archiveMemberMatch[1]);}
 
   if (url.pathname === "/api/meetings" && request.method === "GET") {  return listMeetings(request, env);}
   if (url.pathname === "/api/meetings" && request.method === "POST") { return createMeeting(request, env);}
