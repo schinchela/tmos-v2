@@ -493,7 +493,8 @@ function renderAwardEditor(row) {
             </label>
           </div>
 
-          <div class="module-panel">
+          <div class="module-panel"  id="editAllowedRolesWrap_${escapeHtml(row.id)}"
+  style="${source === "ROLES" ? "" : "display:none;"}">
             <div class="panel-header">
               <h3>Allowed Roles</h3>
             </div>
@@ -547,7 +548,7 @@ function renderAddAwardForm() {
           </label>
         </div>
 
-        <div class="module-panel">
+        <div class="module-panel" id="newAllowedRolesWrap">
           <div class="panel-header">
             <h3>Allowed Roles</h3>
           </div>
@@ -793,6 +794,33 @@ function bindAwardsConfigurationEvents() {
       button.disabled = false;
     }
   });
+  
+  function syncAllowedRolesVisibility(prefix, sourceSelectId, wrapId) {
+  const sourceSelect = document.getElementById(sourceSelectId);
+  const wrap = document.getElementById(wrapId);
+
+  if (!sourceSelect || !wrap) return;
+
+  const update = () => {
+    wrap.style.display = sourceSelect.value === "ROLES" ? "" : "none";
+  };
+
+  sourceSelect.addEventListener("change", update);
+  update();
+}
+  configurationRows.forEach((row) => {
+  syncAllowedRolesVisibility(
+    row.id,
+    `editAwardSource_${row.id}`,
+    `editAllowedRolesWrap_${row.id}`
+  );
+});
+
+syncAllowedRolesVisibility(
+  "new",
+  "newAwardSource",
+  "newAllowedRolesWrap"
+);
 }
 
 function bindConfigurationSaveButton(configType, rows) {
