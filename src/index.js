@@ -3677,9 +3677,17 @@ async function getMeetingAwards(request, env, meetingId) {
     `
   );
 
+  const awards =
+    result?.[0]?.results ||
+    result?.results ||
+    [];
+
   return json({
     success: true,
-    data: { finalized: awards.length >0, awards }
+    data: {
+      finalized: awards.length > 0,
+      awards
+    }
   });
 }
 
