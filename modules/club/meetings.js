@@ -45,7 +45,7 @@ function getNextRegularMeetingDates(dayValue, count = 4) {
   const dates = [];
   const cursor = new Date();
 
-  cursor.setHours(0, 0, 0, 0);
+  cursor.setHours(12, 0, 0, 0);
 
   let daysAhead = targetDay - cursor.getDay();
   if (daysAhead < 0) daysAhead += 7;
