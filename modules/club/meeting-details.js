@@ -668,50 +668,23 @@ function groupAwardCandidates(candidates) {
 
 function renderAwardsPanel(candidates, session, results) {
   const awardsAreFinalized =
-  finalizedAwards?.finalized === true;
+    finalizedAwards?.finalized === true;
+
   const winnerAwards =
-  finalizedAwards?.awards || [];
-  const grouped = Object.values(groupAwardCandidates(candidates));
-  const voteUrl = session?.voteUrl || session?.vote_url || "";
+    finalizedAwards?.awards || [];
+
+  const grouped =
+    Object.values(groupAwardCandidates(candidates));
+
+  const voteUrl =
+    session?.voteUrl || session?.vote_url || "";
+
   if (awardsAreFinalized) {
-  return `
-    <section class="module-panel">
-      <div class="panel-header">
-        <h3>Award Winners</h3>
-        <span class="badge">
-          ${winnerAwards.length}
-        </span>
-      </div>
-
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Award</th>
-            <th>Winner</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          ${winnerAwards.map((award) => `
-            <tr>
-              <td>${escapeHtml(award.award_name)}</td>
-              <td>${escapeHtml(award.winner_name)}</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      </table>
-    </section>
-  `;
-}
-  return `
-    <section class="module-panel">
-      ${
-  finalizedAwards.length
-    ? `
-      <div class="module-panel">
+    return `
+      <section class="module-panel">
         <div class="panel-header">
           <h3>Award Winners</h3>
-          <span class="badge">${finalizedAwards.length}</span>
+          <span class="badge">${winnerAwards.length}</span>
         </div>
 
         <table class="table">
@@ -723,7 +696,7 @@ function renderAwardsPanel(candidates, session, results) {
           </thead>
 
           <tbody>
-            ${finalizedAwards.map((award) => `
+            ${winnerAwards.map((award) => `
               <tr>
                 <td>${escapeHtml(award.award_name)}</td>
                 <td>${escapeHtml(award.winner_name)}</td>
@@ -731,10 +704,16 @@ function renderAwardsPanel(candidates, session, results) {
             `).join("")}
           </tbody>
         </table>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Awards</h3>
+        <span class="badge">${candidates.length} Candidates</span>
       </div>
-    `
-    : ""
-}
 
       <div class="enterprise-form">
         <div class="top-actions">
@@ -747,37 +726,37 @@ function renderAwardsPanel(candidates, session, results) {
           </button>
 
           ${
-  !session
-    ? `
-      <button
-        class="primary-btn"
-        id="openVotingBtn"
-        type="button"
-        ${candidates.filter((c) => Number(c.is_excluded) !== 1).length ? "" : "disabled"}
-      >
-        Open Voting
-      </button>
-    `
-    : String(session.status || "").toUpperCase() === "OPEN"
-    ? `
-      <button
-        class="ghost-btn danger"
-        id="closeVotingBtn"
-        type="button"
-      >
-        Close Voting
-      </button>
-    `
-    : `
-      <button
-        class="ghost-btn"
-        type="button"
-        disabled
-      >
-        Voting Closed
-      </button>
-    `
-}
+            !session
+              ? `
+                <button
+                  class="primary-btn"
+                  id="openVotingBtn"
+                  type="button"
+                  ${candidates.filter((c) => Number(c.is_excluded) !== 1).length ? "" : "disabled"}
+                >
+                  Open Voting
+                </button>
+              `
+              : String(session.status || "").toUpperCase() === "OPEN"
+              ? `
+                <button
+                  class="ghost-btn danger"
+                  id="closeVotingBtn"
+                  type="button"
+                >
+                  Close Voting
+                </button>
+              `
+              : `
+                <button
+                  class="ghost-btn"
+                  type="button"
+                  disabled
+                >
+                  Voting Closed
+                </button>
+              `
+          }
         </div>
 
         ${
@@ -808,11 +787,13 @@ function renderAwardsPanel(candidates, session, results) {
             `
             : ""
         }
-${
-  session && String(session.status || "").toUpperCase() === "CLOSED"
-    ? renderVotingResultsPanel(results)
-    : ""
-}
+
+        ${
+          session && String(session.status || "").toUpperCase() === "CLOSED"
+            ? renderVotingResultsPanel(results)
+            : ""
+        }
+
         <p class="form-message" id="awardCandidatesMessage"></p>
       </div>
 
@@ -1151,14 +1132,16 @@ async function loadFinalizedAwards() {
     );
 
     finalizedAwards = response.data || {
-  finalized: false,
-  awards: []
-};
+      finalized: false,
+      awards: []
+    };
   } catch (_) {
-    finalizedAwards = [];
+    finalizedAwards = {
+      finalized: false,
+      awards: []
+    };
   }
 }
-
 async function loadMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
   await loadAttendanceSources();
