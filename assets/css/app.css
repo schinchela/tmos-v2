@@ -662,3 +662,29 @@ button:active,
     scroll-behavior: auto !important;
   }
 }
+.config-table input[data-config-name] {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  color: #f8fafc;
+  font-size: 14px;
+  outline: none;
+}
+
+.config-table input[data-config-name]:focus {
+  border-color: rgba(59, 130, 246, 0.75);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+}
+
+.config-table input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #2563eb;
+}
+
+.config-table td {
+  vertical-align: middle;
+}
