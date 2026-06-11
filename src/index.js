@@ -1198,6 +1198,241 @@ async function archiveMember(request, env, memberId) {
   });
 }
 
+async function listMeetings(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        id,
+        meeting_title,
+        meeting_type,
+        meeting_theme,
+        meeting_date,
+        start_time,
+        end_time,
+        venue,
+        online_link,
+        status,
+        notes,
+        created_at,
+        updated_at
+      FROM meetings
+      ORDER BY meeting_date DESC, start_time DESC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function createMeeting(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const body = await request.json();
+
+  const title = String(body.meetingTitle || "").trim();
+  const meetingDate = String(body.meetingDate || "").trim();
+
+  if (!title) return json({ success: false, error: "Meeting title is required" }, 400);
+  if (!meetingDate) return json({ success: false, error: "Meeting date is required" }, 400);
+
+  const meetingId = id("meeting");
+  const createdAt = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meetings (
+        id,
+        meeting_title,
+        meeting_type,
+        meeting_theme,
+        meeting_date,
+        start_time,
+        end_time,
+        venue,
+        online_link,
+        status,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(meetingId)},
+        ${sqlValue(title)},
+        ${sqlValue(body.meetingType || "REGULAR")},
+        ${sqlValue(body.meetingTheme)},
+        ${sqlValue(meetingDate)},
+        ${sqlValue(body.startTime)},
+        ${sqlValue(body.endTime)},
+        ${sqlValue(body.venue)},
+        ${sqlValue(body.onlineLink)},
+        ${sqlValue(body.status || "DRAFT")},
+        ${sqlValue(body.notes)},
+        ${sqlValue(createdAt)},
+        ${sqlValue(createdAt)}
+      )
+    `
+  );
+
+  await writeAudit(env, {
+    userId: auth.user.id,
+    action: "CREATE_MEETING",
+    entityType: "meeting",
+    entityId: meetingId,
+    details: {
+      clubId: auth.user.club_id,
+      meetingTitle: title,
+      meetingDate
+    }
+  });
+
+  return json({
+    success: true,
+    data: {
+      id: meetingId,
+      meetingTitle: title,
+      meetingDate,
+      status: body.status || "DRAFT",
+      createdAt
+    }
+  }, 201);
+}
+
+async function getMeetingDetails(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const meetingResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meetings
+      WHERE id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  const meetingRows = meetingResult?.[0]?.results || meetingResult?.results || [];
+  const meeting = meetingRows[0];
+
+  if (!meeting) {
+    return json({ success: false, error: "Meeting not found" }, 404);
+  }
+
+  const participantsResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_participants
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY display_name ASC
+    `
+  );
+
+  const rolesResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_role_assignments
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY sequence_order ASC, role_name ASC
+    `
+  );
+
+  const speechesResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_speeches
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY created_at ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      meeting,
+      participants: participantsResult?.[0]?.results || participantsResult?.results || [],
+      roles: rolesResult?.[0]?.results || rolesResult?.results || [],
+      speeches: speechesResult?.[0]?.results || speechesResult?.results || []
+    }
+  });
+}
+
+async function updateMeeting(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  const body = await request.json();
+
+  const title = String(body.meetingTitle || "").trim();
+  const meetingDate = String(body.meetingDate || "").trim();
+
+  if (!title) return json({ success: false, error: "Meeting title is required" }, 400);
+  if (!meetingDate) return json({ success: false, error: "Meeting date is required" }, 400);
+
+  const updatedAt = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meetings
+      SET
+        meeting_title = ${sqlValue(title)},
+        meeting_type = ${sqlValue(body.meetingType || "REGULAR")},
+        meeting_theme = ${sqlValue(body.meetingTheme)},
+        meeting_date = ${sqlValue(meetingDate)},
+        start_time = ${sqlValue(body.startTime)},
+        end_time = ${sqlValue(body.endTime)},
+        venue = ${sqlValue(body.venue)},
+        online_link = ${sqlValue(body.onlineLink)},
+        status = ${sqlValue(body.status || "DRAFT")},
+        notes = ${sqlValue(body.notes)},
+        updated_at = ${sqlValue(updatedAt)}
+      WHERE id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: meetingId,
+      updatedAt
+    }
+  });
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -1920,91 +2155,34 @@ async function handleRequest(request, env) {
   if (url.pathname === "/api/auth/login" && request.method === "POST") return login(request, env);
   if (url.pathname === "/api/auth/logout" && request.method === "POST") return logout(request, env);
   if (url.pathname === "/api/auth/me" && request.method === "GET") return me(request, env);
-
   if (url.pathname === "/api/club/context" && request.method === "GET") return getClubContext(request, env);
+  
   if (url.pathname === "/api/members" && request.method === "GET") {  return listMembers(request, env);}
   if (url.pathname === "/api/members" && request.method === "POST") { return createMember(request, env);}
   const memberDetailsMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
-if (memberDetailsMatch && request.method === "GET") {
-  return getMemberDetails(request, env, memberDetailsMatch[1]);
-}
+  if (memberDetailsMatch && request.method === "GET") { return getMemberDetails(request, env, memberDetailsMatch[1]);}
   const updateMemberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/);
-if (updateMemberMatch && request.method === "PUT") {
-  return updateMember(request, env, updateMemberMatch[1]);
-}
-  if (
-  url.pathname === "/api/club/settings" &&
-  request.method === "GET"
-) {
-  return getClubSettings(request, env);
-}
+  if (updateMemberMatch && request.method === "PUT") { return updateMember(request, env, updateMemberMatch[1]);}
+  if (url.pathname === "/api/club/settings" && request.method === "GET") { return getClubSettings(request, env);}
+  if (url.pathname === "/api/club/settings" &&  request.method === "PUT") { return updateClubSettings(request, env);}
+  if (url.pathname === "/api/officer-terms" &&  request.method === "GET") {  return listOfficerTerms(request, env);}
+  if (url.pathname === "/api/officer-terms" &&  request.method === "POST") {  return createOfficerTerm(request, env);}
+  const officerAssignmentMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/officer-terms$/);
+  if (officerAssignmentMatch && request.method === "POST") { return assignOfficerTerm(request,env,officerAssignmentMatch[1]);}
+  const endOfficerTermMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/officer-terms\/([^/]+)\/end$/);
+  if (endOfficerTermMatch &&  request.method === "POST") { return endOfficerTerm(request,env,endOfficerTermMatch[1],endOfficerTermMatch[2]);}
+  const archiveMemberMatch = url.pathname.match(/^\/api\/members\/([^/]+)\/archive$/);
+  if (archiveMemberMatch && request.method === "POST") { return archiveMember(request,env,archiveMemberMatch[1]);
 
-if (
-  url.pathname === "/api/club/settings" &&
-  request.method === "PUT"
-) {
-  return updateClubSettings(request, env);
-}
+  if (url.pathname === "/api/meetings" && request.method === "GET") {  return listMeetings(request, env);}
+  if (url.pathname === "/api/meetings" && request.method === "POST") { return createMeeting(request, env);}
+  const meetingDetailsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)$/);
+  if (meetingDetailsMatch && request.method === "GET") { return getMeetingDetails(request, env, meetingDetailsMatch[1]);}
+  const updateMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)$/);
+  if (updateMeetingMatch && request.method === "PUT") { return updateMeeting(request, env, updateMeetingMatch[1]);}
 
-if (
-  url.pathname === "/api/officer-terms" &&
-  request.method === "GET"
-) {
-  return listOfficerTerms(request, env);
-}
 
-if (
-  url.pathname === "/api/officer-terms" &&
-  request.method === "POST"
-) {
-  return createOfficerTerm(request, env);
-}
-
-const officerAssignmentMatch =
-  url.pathname.match(
-    /^\/api\/members\/([^/]+)\/officer-terms$/
-  );
-
-if (
-  officerAssignmentMatch &&
-  request.method === "POST"
-) {
-  return assignOfficerTerm(
-    request,
-    env,
-    officerAssignmentMatch[1]
-  );
-}
-  const endOfficerTermMatch =
-  url.pathname.match(
-    /^\/api\/members\/([^/]+)\/officer-terms\/([^/]+)\/end$/
-  );
-
-if (
-  endOfficerTermMatch &&
-  request.method === "POST"
-) {
-  return endOfficerTerm(
-    request,
-    env,
-    endOfficerTermMatch[1],
-    endOfficerTermMatch[2]
-  );
-}
-  const archiveMemberMatch =
-  url.pathname.match(
-    /^\/api\/members\/([^/]+)\/archive$/
-  );
-
-if (
-  archiveMemberMatch &&
-  request.method === "POST"
-) {
-  return archiveMember(
-    request,
-    env,
-    archiveMemberMatch[1]
-  );
+                                                        
 }
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
