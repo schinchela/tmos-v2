@@ -604,6 +604,115 @@ async function applyMigration020(env, databaseId) {
   );
 }
 
+async function applyMigration021(env, databaseId) {
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS meeting_award_candidates (
+        id TEXT PRIMARY KEY,
+
+        meeting_id TEXT NOT NULL,
+
+        award_config_id TEXT NOT NULL,
+        award_key TEXT NOT NULL,
+        award_name TEXT NOT NULL,
+
+        participant_type TEXT,
+        participant_id TEXT,
+
+        participant_name TEXT,
+        participant_email TEXT,
+
+        source_type TEXT,
+        source_record_id TEXT,
+
+        is_excluded INTEGER DEFAULT 0,
+
+        created_at TEXT,
+        updated_at TEXT
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_award_candidates_meeting",
+    "meeting_award_candidates",
+    "meeting_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_award_candidates_award",
+    "meeting_award_candidates",
+    "award_key"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_award_candidates_source",
+    "meeting_award_candidates",
+    "source_type, source_record_id"
+  );
+}async function applyMigration021(env, databaseId) {
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS meeting_award_candidates (
+        id TEXT PRIMARY KEY,
+
+        meeting_id TEXT NOT NULL,
+
+        award_config_id TEXT NOT NULL,
+        award_key TEXT NOT NULL,
+        award_name TEXT NOT NULL,
+
+        participant_type TEXT,
+        participant_id TEXT,
+
+        participant_name TEXT,
+        participant_email TEXT,
+
+        source_type TEXT,
+        source_record_id TEXT,
+
+        is_excluded INTEGER DEFAULT 0,
+
+        created_at TEXT,
+        updated_at TEXT
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_award_candidates_meeting",
+    "meeting_award_candidates",
+    "meeting_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_award_candidates_award",
+    "meeting_award_candidates",
+    "award_key"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_award_candidates_source",
+    "meeting_award_candidates",
+    "source_type, source_record_id"
+  );
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -2763,7 +2872,25 @@ async function runClubMigrations(env, databaseId) {
     databaseId
   );
   await applyMigration020(env, databaseId);
+  await applyMigration021(env, databaseId);
 
+await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
+    `
+  INSERT OR IGNORE INTO schema_migrations
+  (version, applied_at)
+  VALUES
+  (
+    '021_award_candidates',
+    datetime('now')
+  )
+`
+  ]
+);
+  
+  
   await runCloudflareD1Batch(
   env,
   databaseId,
@@ -2807,6 +2934,7 @@ async function runClubMigrations(env, databaseId) {
   applied.push("018_planned_agenda_speeches");
   applied.push("019_member_recognition_suffix");
   applied.push("020_table_topics_participants");
+  applied.push("021_award_candidates");
   return applied;
 }
 
