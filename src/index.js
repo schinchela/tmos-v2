@@ -1035,7 +1035,9 @@ await executeClubStatement(
   return json({
     success: true,
     data: {
-      officerTermCycle
+      officerTermCycle,
+      regularMeetingDay,
+      regularMeetingTime
     }
   });
 }
