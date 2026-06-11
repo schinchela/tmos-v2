@@ -2566,7 +2566,30 @@ async function updateAgendaSpeech(request, env, meetingId, speechId) {
   });
 }
 
+async function deleteMemberPathway(request, env, memberId, pathwayId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned to this user" }, 400);
+  }
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM member_pathways
+      WHERE id = ${sqlValue(pathwayId)}
+        AND member_id = ${sqlValue(memberId)}
+    `
+  );
+
+  await syncMemberEducationSummary(env, auth.user.club_id, memberId);
+
+  return json({
+    success: true
+  });
+}
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -3383,6 +3406,9 @@ async function handleRequest(request, env) {
   if (memberPathwaysMatch && request.method === "POST") { return createMemberPathway(request, env, memberPathwaysMatch[1]);}
   const memberPathwayLevelMatch =  url.pathname.match(/^\/api\/members\/([^/]+)\/pathways\/([^/]+)\/level$/);
   if (memberPathwayLevelMatch && request.method === "PUT") { return updateMemberPathwayLevel(request,env,memberPathwayLevelMatch[1],memberPathwayLevelMatch[2]);}
+  const memberPathwayDeleteMatch =  url.pathname.match(/^\/api\/members\/([^/]+)\/pathways\/([^/]+)$/);
+  if (memberPathwayDeleteMatch && request.method === "DELETE") {  return deleteMemberPathway(request,env,memberPathwayDeleteMatch[1],memberPathwayDeleteMatch[2]);}
+
   
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
