@@ -299,48 +299,135 @@ async function loadConfiguration(configType) {
   `;
 
   try {
-    const response = await apiRequest(
-      `/api/configuration/${configType}`
-    );
-
+    const response = await apiRequest(`/api/configuration/${configType}`);
     const rows = response.data || [];
 
     container.innerHTML = `
       <div class="panel-header">
-        <h3>${configType}</h3>
+        <h3>${escapeHtml(configType.replaceAll("_", " "))}</h3>
+        <span class="badge">Editable</span>
+      </div>
+
+      <div class="enterprise-form">
+        <p>
+          Enable, disable, rename, or reorder items. Future meetings will use active items only.
+        </p>
       </div>
 
       <table class="table">
         <thead>
           <tr>
+            <th>Enabled</th>
             <th>Name</th>
             <th>Key</th>
-            <th>Active</th>
             <th>Order</th>
+            <th>Save</th>
           </tr>
         </thead>
 
         <tbody>
           ${
-            rows.map(row => `
-              <tr>
-                <td>${row.config_name}</td>
-                <td>${row.config_key}</td>
-                <td>${row.is_active ? "Yes" : "No"}</td>
-                <td>${row.sort_order}</td>
-              </tr>
-            `).join("")
+            rows.length
+              ? rows.map(row => `
+                <tr data-config-row="${escapeHtml(row.id)}">
+                  <td>
+                    <select data-config-active>
+                      <option value="1" ${Number(row.is_active) === 1 ? "selected" : ""}>Enabled</option>
+                      <option value="0" ${Number(row.is_active) === 0 ? "selected" : ""}>Disabled</option>
+                    </select>
+                  </td>
+
+                  <td>
+                    <input
+                      data-config-name
+                      value="${escapeHtml(row.config_name)}"
+                    />
+                  </td>
+
+                  <td>
+                    <input
+                      data-config-key
+                      value="${escapeHtml(row.config_key)}"
+                    />
+                  </td>
+
+                  <td>
+                    <input
+                      data-config-order
+                      type="number"
+                      value="${escapeHtml(row.sort_order || 999)}"
+                    />
+                  </td>
+
+                  <td>
+                    <button
+                      class="primary-btn small-btn"
+                      data-save-config="${escapeHtml(row.id)}"
+                      data-config-type="${escapeHtml(configType)}"
+                      type="button"
+                    >
+                      Save
+                    </button>
+                  </td>
+                </tr>
+              `).join("")
+              : `
+                <tr>
+                  <td colspan="5">No configuration items found.</td>
+                </tr>
+              `
           }
         </tbody>
       </table>
+
+      <p class="form-message" id="configurationMessage"></p>
     `;
+
+    bindConfigurationSaveButtons();
   } catch (error) {
     container.innerHTML = `
       <div class="enterprise-form">
-        Failed to load configuration.
+        Failed to load configuration: ${escapeHtml(error.message)}
       </div>
     `;
   }
+}
+
+function bindConfigurationSaveButtons() {
+  document.querySelectorAll("[data-save-config]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const row = button.closest("[data-config-row]");
+      const message = document.getElementById("configurationMessage");
+      const configType = button.dataset.configType;
+      const configId = button.dataset.saveConfig;
+
+      const payload = {
+        configName: row.querySelector("[data-config-name]").value,
+        configKey: row.querySelector("[data-config-key]").value,
+        isActive: row.querySelector("[data-config-active]").value === "1",
+        sortOrder: row.querySelector("[data-config-order]").value,
+        configValue: {}
+      };
+
+      button.disabled = true;
+      button.textContent = "Saving...";
+      message.textContent = "Saving configuration...";
+
+      try {
+        await apiRequest(`/api/configuration/${configType}/${configId}`, {
+          method: "PUT",
+          body: payload
+        });
+
+        message.textContent = "Configuration saved successfully.";
+        await loadConfiguration(configType);
+      } catch (error) {
+        message.textContent = error.message;
+        button.disabled = false;
+        button.textContent = "Save";
+      }
+    });
+  });
 }
 
 export async function initClubSettings() {
