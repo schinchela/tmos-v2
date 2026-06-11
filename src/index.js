@@ -3484,6 +3484,110 @@ async function closeVoting(request, env, meetingId) {
   });
 }
 
+async function getVotingResults(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        c.award_key,
+        c.award_name,
+        c.id AS candidate_id,
+        c.participant_type,
+        c.participant_id,
+        c.participant_name,
+        c.participant_email,
+        COUNT(v.id) AS vote_count
+      FROM meeting_award_candidates c
+      LEFT JOIN meeting_votes v
+        ON v.candidate_id = c.id
+      WHERE c.meeting_id = ${sqlValue(meetingId)}
+        AND c.is_excluded = 0
+      GROUP BY
+        c.award_key,
+        c.award_name,
+        c.id,
+        c.participant_type,
+        c.participant_id,
+        c.participant_name,
+        c.participant_email
+      ORDER BY
+        c.award_name ASC,
+        vote_count DESC,
+        c.participant_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function finalizeVotingAwards(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+  const winners = Array.isArray(body.winners) ? body.winners : [];
+
+  if (!winners.length) {
+    return json({
+      success: false,
+      error: "No winners selected."
+    }, 400);
+  }
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_awards
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  const timestamp = now();
+
+  for (const winner of winners) {
+    await executeClubStatement(
+      env,
+      auth.user.club_id,
+      `
+        INSERT INTO meeting_awards (
+          id,
+          meeting_id,
+          participant_ref_id,
+          award_type,
+          award_name,
+          notes,
+          created_at
+        )
+        VALUES (
+          ${sqlValue(id("award"))},
+          ${sqlValue(meetingId)},
+          ${sqlValue(winner.candidateId)},
+          ${sqlValue(winner.awardKey)},
+          ${sqlValue(winner.awardName)},
+          ${sqlValue(winner.participantName)},
+          ${sqlValue(timestamp)}
+        )
+      `
+    );
+  }
+
+  return json({
+    success: true,
+    data: {
+      saved: winners.length
+    }
+  });
+}
+
+
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -4380,6 +4484,10 @@ async function handleRequest(request, env) {
   if (publicVoteMatch && request.method === "POST") { return submitPublicVote(request,env,publicVoteMatch[1]);}
   const closeVotingMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting\/close$/);
   if (closeVotingMatch && request.method === "POST") { return closeVoting(request,env,closeVotingMatch[1]);}
+  const votingResultsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting\/results$/);
+  if (votingResultsMatch && request.method === "GET") { return getVotingResults(request,env,votingResultsMatch[1]);}
+  const finalizeVotingAwardsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting\/finalize$/);
+  if (finalizeVotingAwardsMatch && request.method === "POST") { return finalizeVotingAwards(request,env,finalizeVotingAwardsMatch[1]);}
 
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
