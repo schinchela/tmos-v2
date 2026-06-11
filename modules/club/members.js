@@ -2,7 +2,44 @@ import { apiRequest } from "../../assets/js/api.js";
 
 let membersCache = [];
 let filteredMembers = [];
+const PATHWAYS = [
+  "Dynamic Leadership",
+  "Effective Coaching",
+  "Engaging Humor",
+  "Innovative Planning",
+  "Leadership Development",
+  "Motivational Strategies",
+  "Persuasive Influence",
+  "Presentation Mastery",
+  "Strategic Relationships",
+  "Team Collaboration",
+  "Visionary Communication"
+];
 
+function pathwayOptions(selected = "") {
+  return `
+    <option value="">Select Pathway</option>
+    ${PATHWAYS.map((pathway) => `
+      <option value="${escapeHtml(pathway)}" ${selected === pathway ? "selected" : ""}>
+        ${escapeHtml(pathway)}
+      </option>
+    `).join("")}
+  `;
+}
+
+function pathwayLevelOptions(selected = 0) {
+  const current = String(selected ?? "0");
+
+  return `
+    <option value="0" ${current === "0" ? "selected" : ""}>Not Started</option>
+    <option value="1" ${current === "1" ? "selected" : ""}>Level 1</option>
+    <option value="2" ${current === "2" ? "selected" : ""}>Level 2</option>
+    <option value="3" ${current === "3" ? "selected" : ""}>Level 3</option>
+    <option value="4" ${current === "4" ? "selected" : ""}>Level 4</option>
+    <option value="5" ${current === "5" ? "selected" : ""}>Level 5</option>
+    <option value="6" ${current === "6" ? "selected" : ""}>Completed</option>
+  `;
+}
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -179,18 +216,15 @@ export function renderClubMembers() {
 
           <label>
             Pathway
-            <input name="pathwayName" placeholder="Dynamic Leadership, Presentation Mastery..." />
+            <select name="pathwayLevel">
+            ${pathwayLevelOptions()}
+          </select>
           </label>
 
           <label>
             Pathway Level
             <select name="pathwayLevel">
-              <option value="0">Not Started</option>
-              <option value="1">Level 1</option>
-              <option value="2">Level 2</option>
-              <option value="3">Level 3</option>
-              <option value="4">Level 4</option>
-              <option value="5">Level 5</option>
+            ${pathwayLevelOptions()}
             </select>
           </label>
 
