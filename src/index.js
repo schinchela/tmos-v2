@@ -3683,6 +3683,54 @@ async function getMeetingAwards(request, env, meetingId) {
   });
 }
 
+async function closeMeeting(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const timestamp = now();
+
+  const meetingResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meetings
+      WHERE id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  const meeting =
+    meetingResult?.[0]?.results?.[0] ||
+    meetingResult?.results?.[0];
+
+  if (!meeting) {
+    return json({
+      success: false,
+      error: "Meeting not found"
+    }, 404);
+  }
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meetings
+      SET
+        status = 'COMPLETED',
+        updated_at = ${sqlValue(timestamp)}
+      WHERE id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      meetingId,
+      status: "COMPLETED"
+    }
+  });
+}
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -4585,7 +4633,8 @@ async function handleRequest(request, env) {
   if (finalizeVotingAwardsMatch && request.method === "POST") { return finalizeVotingAwards(request,env,finalizeVotingAwardsMatch[1]);}
   const meetingAwardsMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/awards$/);
   if (meetingAwardsMatch &&  request.method === "GET") { return getMeetingAwards(request,env,meetingAwardsMatch[1]);}
-
+  const closeMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/close$/);
+  if (closeMeetingMatch && request.method === "POST") { return closeMeeting(request,env,closeMeetingMatch[1]);}
   
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
