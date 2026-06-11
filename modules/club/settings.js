@@ -89,6 +89,28 @@ export function renderClubSettings() {
               <option value="HALF_YEARLY">Half-Yearly — July to December / January to June</option>
             </select>
           </label>
+          <label>
+          Regular Meeting Day
+  <select name="regularMeetingDay" id="regularMeetingDay">
+    <option value="">Not Set</option>
+    <option value="0">Sunday</option>
+    <option value="1">Monday</option>
+    <option value="2">Tuesday</option>
+    <option value="3">Wednesday</option>
+    <option value="4">Thursday</option>
+    <option value="5">Friday</option>
+    <option value="6">Saturday</option>
+  </select>
+</label>
+
+<label>
+  Regular Meeting Time
+  <input
+    name="regularMeetingTime"
+    id="regularMeetingTime"
+    type="time"
+  />
+</label>
         </div>
 
         <div class="module-panel">
@@ -256,7 +278,11 @@ async function loadSettings() {
 
     select.value = settings.officer_term_cycle || "YEARLY";
     generationCycle.value = settings.officer_term_cycle || "YEARLY";
+    document.getElementById("regularMeetingDay").value =
+  settings.regular_meeting_day || "";
 
+document.getElementById("regularMeetingTime").value =
+  settings.regular_meeting_time || "";
     updatePreview();
     updateGenerationPreview();
 
@@ -457,8 +483,10 @@ export async function initClubSettings() {
       await apiRequest("/api/club/settings", {
         method: "PUT",
         body: {
-          officerTermCycle: select.value
-        }
+  officerTermCycle: select.value,
+  regularMeetingDay: document.getElementById("regularMeetingDay").value,
+  regularMeetingTime: document.getElementById("regularMeetingTime").value
+}
       });
 
       updatePreview();
