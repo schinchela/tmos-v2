@@ -170,6 +170,25 @@ function activeMeetingRoles() {
 
 
 function renderParticipantsPanel(participants) {
+  const existingMemberIds = new Set(
+  participants
+    .filter((p) => p.participant_type === "MEMBER")
+    .map((p) => p.participant_id)
+);
+
+const existingGuestIds = new Set(
+  participants
+    .filter((p) => p.participant_type === "GUEST")
+    .map((p) => p.participant_id)
+);
+
+const availableMembers = attendanceSources.members.filter(
+  (member) => !existingMemberIds.has(member.id)
+);
+
+const availableGuests = attendanceSources.guests.filter(
+  (guest) => !existingGuestIds.has(guest.id)
+);
   return `
     <section class="module-panel">
       <div class="panel-header">
@@ -191,14 +210,14 @@ function renderParticipantsPanel(participants) {
     <label id="memberSelectWrap">
       Member
       <select id="memberParticipantSelect">
-        ${renderPersonOptions(attendanceSources.members)}
+        ${renderPersonOptions(availableMembers)}
       </select>
     </label>
 
     <label id="guestSelectWrap" style="display:none;">
       Guest
       <select id="guestParticipantSelect">
-        ${renderPersonOptions(attendanceSources.guests)}
+        ${renderPersonOptions(availableGuests)}
       </select>
     </label>
 
@@ -299,14 +318,14 @@ function renderAgendaRolesPanel(roles) {
           <label id="agendaMemberWrap" style="display:none;">
             Member
             <select id="agendaMemberSelect">
-              ${renderPersonOptions(attendanceSources.members)}
+              ${renderPersonOptions(availableMembers)}
             </select>
           </label>
 
           <label id="agendaGuestWrap" style="display:none;">
             Guest
             <select id="agendaGuestSelect">
-              ${renderPersonOptions(attendanceSources.guests)}
+              ${renderPersonOptions(availableGuests)}
             </select>
           </label>
 
