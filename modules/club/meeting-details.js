@@ -9,6 +9,8 @@ let attendanceSources = {
 };
 let meetingRoleConfig = [];
 let awardCandidates = [];
+let votingSession = null;
+
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -659,8 +661,9 @@ function groupAwardCandidates(candidates) {
   }, {});
 }
 
-function renderAwardsPanel(candidates) {
+function renderAwardsPanel(candidates, session) {
   const grouped = Object.values(groupAwardCandidates(candidates));
+  const voteUrl = session?.voteUrl || session?.vote_url || "";
 
   return `
     <section class="module-panel">
@@ -670,13 +673,53 @@ function renderAwardsPanel(candidates) {
       </div>
 
       <div class="enterprise-form">
-        <button
-          class="primary-btn"
-          id="generateAwardCandidatesBtn"
-          type="button"
-        >
-          Generate / Refresh Candidates
-        </button>
+        <div class="top-actions">
+          <button
+            class="primary-btn"
+            id="generateAwardCandidatesBtn"
+            type="button"
+          >
+            Generate / Refresh Candidates
+          </button>
+
+          <button
+            class="primary-btn"
+            id="openVotingBtn"
+            type="button"
+            ${candidates.filter((c) => Number(c.is_excluded) !== 1).length ? "" : "disabled"}
+          >
+            Open Voting
+          </button>
+        </div>
+
+        ${
+          session
+            ? `
+              <div class="module-panel">
+                <div class="panel-header">
+                  <h3>Voting Link</h3>
+                  <span class="badge">${escapeHtml(session.status || "OPEN")}</span>
+                </div>
+
+                <div class="enterprise-form">
+                  <input
+                    id="votingLinkInput"
+                    value="${escapeHtml(voteUrl)}"
+                    readonly
+                  />
+
+                  <button
+                    class="ghost-btn"
+                    id="copyVotingLinkBtn"
+                    type="button"
+                  >
+                    Copy Voting Link
+                  </button>
+                </div>
+              </div>
+            `
+            : ""
+        }
 
         <p class="form-message" id="awardCandidatesMessage"></p>
       </div>
@@ -703,9 +746,14 @@ function renderAwardsPanel(candidates) {
                   ${group.candidates.map((candidate) => `
                     <tr>
                       <td>
-                        <strong>${escapeHtml(candidate.participant_name || "-")}</strong><br>
-                        <small>${escapeHtml(candidate.participant_email || "")}</small>
+                        <strong>${escapeHtml(candidate.participant_name || "-")}</strong>
+                        ${
+                          candidate.participant_email
+                            ? `<br><small>${escapeHtml(candidate.participant_email)}</small>`
+                            : ""
+                        }
                       </td>
+
                       <td>
                         ${
                           Number(candidate.is_excluded) === 1
@@ -713,6 +761,7 @@ function renderAwardsPanel(candidates) {
                             : `<span class="badge">Eligible</span>`
                         }
                       </td>
+
                       <td>
                         <button
                           class="ghost-btn small-btn ${Number(candidate.is_excluded) === 1 ? "" : "danger"}"
@@ -834,12 +883,25 @@ async function loadAwardCandidates() {
   }
 }
 
+async function loadVotingSession() {
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/voting`
+    );
+
+    votingSession = response.data || null;
+  } catch (_) {
+    votingSession = null;
+  }
+}
 
 async function loadMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
   await loadAttendanceSources();
   await loadMeetingRoleConfig();
   await loadAwardCandidates();
+  await loadVotingSession();
+  
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
 
@@ -1311,6 +1373,39 @@ document.querySelectorAll("[data-toggle-award-candidate]").forEach((button) => {
       button.disabled = false;
     }
   });
+});
+  const openVotingBtn = document.getElementById("openVotingBtn");
+
+openVotingBtn?.addEventListener("click", async () => {
+  const message = document.getElementById("awardCandidatesMessage");
+
+  message.textContent = "Opening voting...";
+  openVotingBtn.disabled = true;
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/voting/open`,
+      {
+        method: "POST"
+      }
+    );
+
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+    openVotingBtn.disabled = false;
+  }
+});
+
+document.getElementById("copyVotingLinkBtn")?.addEventListener("click", async () => {
+  const input = document.getElementById("votingLinkInput");
+
+  if (!input?.value) return;
+
+  await navigator.clipboard.writeText(input.value);
+
+  const message = document.getElementById("awardCandidatesMessage");
+  message.textContent = "Voting link copied.";
 });
 }
 
