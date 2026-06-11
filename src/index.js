@@ -3461,6 +3461,29 @@ async function submitPublicVote(request, env, publicToken) {
   }, 404);
 }
 
+async function closeVoting(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meeting_vote_sessions
+      SET
+        status = 'CLOSED',
+        closed_at = ${sqlValue(now())},
+        updated_at = ${sqlValue(now())}
+      WHERE meeting_id = ${sqlValue(meetingId)}
+        AND status = 'OPEN'
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
+
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -4355,7 +4378,8 @@ async function handleRequest(request, env) {
   const publicVoteMatch = url.pathname.match(/^\/api\/vote\/([^/]+)$/);
   if (publicVoteMatch && request.method === "GET") { return getPublicVotePage(request,env,publicVoteMatch[1]);}
   if (publicVoteMatch && request.method === "POST") { return submitPublicVote(request,env,publicVoteMatch[1]);}
-
+  const closeVotingMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting\/close$/);
+  if (closeVotingMatch && request.method === "POST") { return closeVoting(request,env,closeVotingMatch[1]);}
 
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
