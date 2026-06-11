@@ -3541,6 +3541,23 @@ async function finalizeVotingAwards(request, env, meetingId) {
     }, 400);
   }
 
+  const meetingResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meetings
+      WHERE id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  const meeting =
+    meetingResult?.[0]?.results?.[0] ||
+    meetingResult?.results?.[0];
+
+  const awardDate = meeting?.meeting_date || now();
+
   await executeClubStatement(
     env,
     auth.user.club_id,
@@ -3550,9 +3567,36 @@ async function finalizeVotingAwards(request, env, meetingId) {
     `
   );
 
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM member_awards
+      WHERE source = ${sqlValue(`MEETING:${meetingId}`)}
+    `
+  );
+
   const timestamp = now();
 
   for (const winner of winners) {
+    const candidateResult = await executeClubQuery(
+      env,
+      auth.user.club_id,
+      `
+        SELECT *
+        FROM meeting_award_candidates
+        WHERE id = ${sqlValue(winner.candidateId)}
+          AND meeting_id = ${sqlValue(meetingId)}
+        LIMIT 1
+      `
+    );
+
+    const candidate =
+      candidateResult?.[0]?.results?.[0] ||
+      candidateResult?.results?.[0];
+
+    if (!candidate) continue;
+
     await executeClubStatement(
       env,
       auth.user.club_id,
@@ -3569,14 +3613,43 @@ async function finalizeVotingAwards(request, env, meetingId) {
         VALUES (
           ${sqlValue(id("award"))},
           ${sqlValue(meetingId)},
-          ${sqlValue(winner.candidateId)},
-          ${sqlValue(winner.awardKey)},
-          ${sqlValue(winner.awardName)},
-          ${sqlValue(winner.participantName)},
+          ${sqlValue(candidate.participant_id)},
+          ${sqlValue(candidate.award_key)},
+          ${sqlValue(candidate.award_name)},
+          ${sqlValue(candidate.participant_name)},
           ${sqlValue(timestamp)}
         )
       `
     );
+
+    if (candidate.participant_type === "MEMBER" && candidate.participant_id) {
+      await executeClubStatement(
+        env,
+        auth.user.club_id,
+        `
+          INSERT INTO member_awards (
+            id,
+            member_id,
+            award_type,
+            award_name,
+            award_date,
+            source,
+            notes,
+            created_at
+          )
+          VALUES (
+            ${sqlValue(id("maward"))},
+            ${sqlValue(candidate.participant_id)},
+            ${sqlValue(candidate.award_key)},
+            ${sqlValue(candidate.award_name)},
+            ${sqlValue(awardDate)},
+            ${sqlValue(`MEETING:${meetingId}`)},
+            ${sqlValue(meeting?.meeting_title || "")},
+            ${sqlValue(timestamp)}
+          )
+        `
+      );
+    }
   }
 
   return json({
