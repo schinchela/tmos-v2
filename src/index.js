@@ -3660,6 +3660,28 @@ async function finalizeVotingAwards(request, env, meetingId) {
   });
 }
 
+async function getMeetingAwards(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        award_name,
+        notes AS winner_name
+      FROM meeting_awards
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      ORDER BY award_name
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
 
 
 async function runClubMigrations(env, databaseId) {
@@ -4561,7 +4583,10 @@ async function handleRequest(request, env) {
   if (votingResultsMatch && request.method === "GET") { return getVotingResults(request,env,votingResultsMatch[1]);}
   const finalizeVotingAwardsMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/voting\/finalize$/);
   if (finalizeVotingAwardsMatch && request.method === "POST") { return finalizeVotingAwards(request,env,finalizeVotingAwardsMatch[1]);}
+  const meetingAwardsMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/awards$/);
+  if (meetingAwardsMatch &&  request.method === "GET") { return getMeetingAwards(request,env,meetingAwardsMatch[1]);}
 
+  
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
