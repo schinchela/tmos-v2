@@ -5839,7 +5839,12 @@ async function handleRequest(request, env,ctx) {
   if (publishAgendaMatch && request.method === "POST") { return publishMeetingAgenda(request,env,publishAgendaMatch[1]);}
   const publicAgendaMatch = url.pathname.match(/^\/api\/public-agenda\/([^/]+)$/);
   if (publicAgendaMatch && request.method === "GET") { return getPublicAgenda(request,env,publicAgendaMatch[1]);}
-
+  const publishMinutesMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/publish-minutes$/);
+  if (publishMinutesMatch &&  request.method === "GET") {  return getMeetingMinutesPublication(request,env,publishMinutesMatch[1]);}
+  if (publishMinutesMatch &&  request.method === "POST") { return publishMeetingMinutes(request,env,publishMinutesMatch[1]);}
+  const publicMinutesMatch = url.pathname.match(/^\/api\/public-minutes\/([^/]+)$/);
+  if (publicMinutesMatch &&  request.method === "GET") { return getPublicMinutes(request,env,publicMinutesMatch[1]);}
+  
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
