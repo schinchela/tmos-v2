@@ -187,24 +187,25 @@ function activeMeetingRoles() {
 
 function renderParticipantsPanel(participants) {
   const existingMemberIds = new Set(
-  participants
-    .filter((p) => p.participant_type === "MEMBER")
-    .map((p) => p.participant_id)
-);
+    participants
+      .filter((p) => p.participant_type === "MEMBER")
+      .map((p) => p.participant_id)
+  );
 
-const existingGuestIds = new Set(
-  participants
-    .filter((p) => p.participant_type === "GUEST")
-    .map((p) => p.participant_id)
-);
+  const existingGuestIds = new Set(
+    participants
+      .filter((p) => p.participant_type === "GUEST")
+      .map((p) => p.participant_id)
+  );
 
-const availableMembers = attendanceSources.members.filter(
-  (member) => !existingMemberIds.has(member.id)
-);
+  const availableMembers = attendanceSources.members.filter(
+    (member) => !existingMemberIds.has(member.id)
+  );
 
-const availableGuests = attendanceSources.guests.filter(
-  (guest) => !existingGuestIds.has(guest.id)
-);
+  const availableGuests = attendanceSources.guests.filter(
+    (guest) => !existingGuestIds.has(guest.id)
+  );
+
   return `
     <section class="module-panel">
       <div class="panel-header">
@@ -213,52 +214,52 @@ const availableGuests = attendanceSources.guests.filter(
       </div>
 
       <form class="enterprise-form" id="addParticipantForm">
-  <div class="form-grid">
-    <label>
-      Add From
-      <select name="sourceType" id="participantSourceType">
-        <option value="MEMBER">Member</option>
-        <option value="GUEST">Guest</option>
-        <option value="VISITOR">Manual Visitor</option>
-      </select>
-    </label>
+        <div class="form-grid">
+          <label>
+            Add From
+            <select name="sourceType" id="participantSourceType" ${meetingLocked() ? "disabled" : ""}>
+              <option value="MEMBER">Member</option>
+              <option value="GUEST">Guest</option>
+              <option value="VISITOR">Manual Visitor</option>
+            </select>
+          </label>
 
-    <label id="memberSelectWrap">
-      Member
-      <select id="memberParticipantSelect">
-        ${renderPersonOptions(availableMembers)}
-      </select>
-    </label>
+          <label id="memberSelectWrap">
+            Member
+            <select id="memberParticipantSelect" ${meetingLocked() ? "disabled" : ""}>
+              ${renderPersonOptions(availableMembers)}
+            </select>
+          </label>
 
-    <label id="guestSelectWrap" style="display:none;">
-      Guest
-      <select id="guestParticipantSelect">
-        ${renderPersonOptions(availableGuests)}
-      </select>
-    </label>
+          <label id="guestSelectWrap" style="display:none;">
+            Guest
+            <select id="guestParticipantSelect" ${meetingLocked() ? "disabled" : ""}>
+              ${renderPersonOptions(availableGuests)}
+            </select>
+          </label>
 
-    <label id="visitorNameWrap" style="display:none;">
-      Visitor Name
-      <input name="displayName" id="visitorDisplayName" placeholder="Visitor name" />
-    </label>
+          <label id="visitorNameWrap" style="display:none;">
+            Visitor Name
+            <input name="displayName" id="visitorDisplayName" placeholder="Visitor name" ${meetingLocked() ? "disabled" : ""} />
+          </label>
 
-    <label>
-      Email
-      <input name="email" id="participantEmail" type="email" placeholder="Optional email" />
-    </label>
+          <label>
+            Email
+            <input name="email" id="participantEmail" type="email" placeholder="Optional email" ${meetingLocked() ? "disabled" : ""} />
+          </label>
 
-    <label>
-      Notes
-      <input name="notes" placeholder="Optional notes" />
-    </label>
-  </div>
+          <label>
+            Notes
+            <input name="notes" placeholder="Optional notes" ${meetingLocked() ? "disabled" : ""} />
+          </label>
+        </div>
 
-  <button class="primary-btn" id="addParticipantBtn" type="submit">
-    Add Present Participant
-  </button>
+        <button class="primary-btn" id="addParticipantBtn" type="submit" ${meetingLocked() ? "disabled" : ""}>
+          Add Present Participant
+        </button>
 
-  <p class="form-message" id="participantMessage"></p>
-</form>
+        <p class="form-message" id="participantMessage"></p>
+      </form>
 
       <table class="table">
         <thead>
@@ -267,8 +268,10 @@ const availableGuests = attendanceSources.guests.filter(
             <th>Type</th>
             <th>Email</th>
             <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
+
         <tbody>
           ${
             participants.length
@@ -278,121 +281,35 @@ const availableGuests = attendanceSources.guests.filter(
                   <td>${escapeHtml(participant.participant_type)}</td>
                   <td>${escapeHtml(participant.email || "-")}</td>
                   <td>${escapeHtml(participant.attendance_status || "PRESENT")}</td>
-                </tr>
-              `).join("")
-              : `
-                <tr>
-                  <td colspan="4">
-                    No participants marked present yet.
+                  <td>
+                    <button
+                      class="ghost-btn small-btn"
+                      type="button"
+                      data-edit-participant="${escapeHtml(participant.id)}"
+                      data-name="${escapeHtml(participant.display_name || "")}"
+                      data-email="${escapeHtml(participant.email || "")}"
+                      data-status="${escapeHtml(participant.attendance_status || "PRESENT")}"
+                      data-notes="${escapeHtml(participant.notes || "")}"
+                      ${meetingLocked() ? "disabled" : ""}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      class="ghost-btn small-btn danger"
+                      type="button"
+                      data-delete-participant="${escapeHtml(participant.id)}"
+                      ${meetingLocked() ? "disabled" : ""}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
-              `
-          }
-        </tbody>
-      </table>
-    </section>
-  `;
-}
-
-function renderAgendaRolesPanel(roles) {
-  const plannedRoleCodes = new Set(
-  roles.map((role) => role.role_code)
-);
-
-const configRoles = activeMeetingRoles().filter(
-  (role) => !plannedRoleCodes.has(role.config_key)
-);
-const availableMembers = attendanceSources.members;
-const availableGuests = attendanceSources.guests;
-
-  return `
-    <section class="module-panel">
-      <div class="panel-header">
-        <h3>Agenda & Roles</h3>
-        <span class="badge">${roles.length} Planned</span>
-      </div>
-
-      <form class="enterprise-form" id="addAgendaRoleForm">
-        <div class="form-grid">
-          <label>
-            Role
-            <select id="agendaRoleSelect" required>
-              <option value="">Select role</option>
-              ${configRoles.map((role) => `
-                <option
-                  value="${escapeHtml(role.config_key)}"
-                  data-name="${escapeHtml(role.config_name)}"
-                >
-                  ${escapeHtml(role.config_name)}
-                </option>
-              `).join("")}
-            </select>
-          </label>
-
-          <label>
-            Assign From
-            <select id="agendaRoleSourceType">
-              <option value="">Leave Vacant</option>
-              <option value="MEMBER">Member</option>
-              <option value="GUEST">Guest</option>
-              <option value="VISITOR">Manual Visitor</option>
-            </select>
-          </label>
-
-          <label id="agendaMemberWrap" style="display:none;">
-            Member
-            <select id="agendaMemberSelect">
-              ${renderPersonOptions(availableMembers)}
-            </select>
-          </label>
-
-          <label id="agendaGuestWrap" style="display:none;">
-            Guest
-            <select id="agendaGuestSelect">
-              ${renderPersonOptions(availableGuests)}
-            </select>
-          </label>
-
-          <label id="agendaVisitorWrap" style="display:none;">
-            Visitor Name
-            <input id="agendaVisitorName" placeholder="Visitor name" />
-          </label>
-
-          <label>
-            Notes
-            <input id="agendaRoleNotes" placeholder="Optional notes" />
-          </label>
-        </div>
-
-        <button  class="primary-btn"  id="addAgendaRoleBtn"  type="submit"  ${meetingLocked() ? "disabled" : ""}>
-          Add Planned Role
-        </button>
-
-        <p class="form-message" id="agendaRoleMessage"></p>
-      </form>
-
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Role</th>
-            <th>Planned Person</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${
-            roles.length
-              ? roles.map((role) => `
-                <tr>
-                  <td><strong>${escapeHtml(role.role_name)}</strong></td>
-                  <td>${escapeHtml(role.planned_display_name || "Vacant")}</td>
-                  <td>${escapeHtml(role.assignment_status || "PLANNED")}</td>
-                </tr>
               `).join("")
               : `
                 <tr>
-                  <td colspan="3">
-                    No agenda roles planned yet.
+                  <td colspan="5">
+                    No participants marked present yet.
                   </td>
                 </tr>
               `
@@ -1193,125 +1110,107 @@ function bindMeetingCommandCenterEvents() {
   const guestSelect = document.getElementById("guestParticipantSelect");
   const visitorName = document.getElementById("visitorDisplayName");
   const emailInput = document.getElementById("participantEmail");
-  
-const agendaRoleForm = document.getElementById("addAgendaRoleForm");
-const agendaRoleSourceType = document.getElementById("agendaRoleSourceType");
-const agendaMemberWrap = document.getElementById("agendaMemberWrap");
-const agendaGuestWrap = document.getElementById("agendaGuestWrap");
-const agendaVisitorWrap = document.getElementById("agendaVisitorWrap");
+
+  document.querySelectorAll("[data-edit-participant]").forEach((editButton) => {
+    editButton.addEventListener("click", async () => {
+      const participantId = editButton.dataset.editParticipant;
+
+      const displayName = prompt("Participant name", editButton.dataset.name || "");
+      if (!displayName) return;
+
+      const email = prompt("Email", editButton.dataset.email || "") || "";
+      const attendanceStatus =
+        prompt("Attendance status", editButton.dataset.status || "PRESENT") || "PRESENT";
+      const notes = prompt("Notes", editButton.dataset.notes || "") || "";
+
+      editButton.disabled = true;
+      editButton.textContent = "Saving...";
+
+      try {
+        await apiRequest(
+          `/api/meetings/${currentMeetingId}/participants/${participantId}`,
+          {
+            method: "PUT",
+            body: {
+              displayName,
+              email,
+              attendanceStatus,
+              notes
+            }
+          }
+        );
+
+        window.__keepMeetingScroll = true;
+        await loadMeetingDetails();
+      } catch (error) {
+        alert(error.message);
+        editButton.disabled = false;
+        editButton.textContent = "Edit";
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-delete-participant]").forEach((deleteButton) => {
+    deleteButton.addEventListener("click", async () => {
+      const participantId = deleteButton.dataset.deleteParticipant;
+
+      if (!confirm("Delete this participant from the meeting?")) return;
+
+      deleteButton.disabled = true;
+      deleteButton.textContent = "Deleting...";
+
+      try {
+        await apiRequest(
+          `/api/meetings/${currentMeetingId}/participants/${participantId}`,
+          { method: "DELETE" }
+        );
+
+        window.__keepMeetingScroll = true;
+        await loadMeetingDetails();
+      } catch (error) {
+        alert(error.message);
+        deleteButton.disabled = false;
+        deleteButton.textContent = "Delete";
+      }
+    });
+  });
 
   document.getElementById("deleteMeetingBtn")?.addEventListener("click", async () => {
-  const confirmed = confirm("Delete this meeting and all agenda, attendance, speeches and awards?");
-  if (!confirmed) return;
-    try {
-      await apiRequest(
-        `/api/meetings/${currentMeetingId}`,
-        {
-          method: "DELETE"
-        }
-      );
-      const { navigate } =
-        await import("../../assets/js/router.js");
-      navigate("club-meetings");
+    const confirmed = confirm("Delete this meeting and all agenda, attendance, speeches and awards?");
+    if (!confirmed) return;
 
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}`, {
+        method: "DELETE"
+      });
+
+      const { navigate } = await import("../../assets/js/router.js");
+      navigate("club-meetings");
     } catch (error) {
       alert(error.message);
     }
   });
-  
-function updateAgendaSourceUI() {
-  const value = agendaRoleSourceType?.value || "";
 
-  if (!agendaMemberWrap || !agendaGuestWrap || !agendaVisitorWrap) return;
-
-  agendaMemberWrap.style.display = value === "MEMBER" ? "" : "none";
-  agendaGuestWrap.style.display = value === "GUEST" ? "" : "none";
-  agendaVisitorWrap.style.display = value === "VISITOR" ? "" : "none";
-}
-
-agendaRoleSourceType?.addEventListener("change", updateAgendaSourceUI);
-updateAgendaSourceUI();
-
-agendaRoleForm?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const message = document.getElementById("agendaRoleMessage");
-  const button = document.getElementById("addAgendaRoleBtn");
-  const roleSelect = document.getElementById("agendaRoleSelect");
-
-  const selectedRole = roleSelect.selectedOptions?.[0];
-  const sourceType = agendaRoleSourceType.value;
-
-  let plannedParticipantId = "";
-  let plannedDisplayName = "";
-  let plannedEmail = "";
-
-  if (sourceType === "MEMBER") {
-    const selected = document.getElementById("agendaMemberSelect").selectedOptions?.[0];
-    plannedParticipantId = document.getElementById("agendaMemberSelect").value;
-    plannedDisplayName = selected?.dataset.name || "";
-    plannedEmail = selected?.dataset.email || "";
-  }
-
-  if (sourceType === "GUEST") {
-    const selected = document.getElementById("agendaGuestSelect").selectedOptions?.[0];
-    plannedParticipantId = document.getElementById("agendaGuestSelect").value;
-    plannedDisplayName = selected?.dataset.name || "";
-    plannedEmail = selected?.dataset.email || "";
-  }
-
-  if (sourceType === "VISITOR") {
-    plannedDisplayName = document.getElementById("agendaVisitorName").value;
-  }
-
-  if (!roleSelect.value) {
-    message.textContent = "Please select a role.";
-    return;
-  }
-
-  message.textContent = "Adding planned role...";
-  button.disabled = true;
-
-  try {
-    await apiRequest(`/api/meetings/${currentMeetingId}/agenda-roles`, {
-      method: "POST",
-      body: {
-        roleCode: roleSelect.value,
-        roleName: selectedRole?.dataset.name || roleSelect.value,
-        assignmentStatus: plannedDisplayName ? "PLANNED" : "UNASSIGNED",
-        sequenceOrder: 0,
-        plannedParticipantType: sourceType || "",
-        plannedParticipantId,
-        plannedDisplayName,
-        plannedEmail,
-        notes: document.getElementById("agendaRoleNotes").value
-      }
-    });
-
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-    button.disabled = false;
-  }
-});
-  
-  
   function updateParticipantSourceUI() {
     const value = sourceType?.value || "MEMBER";
+
+    if (!memberWrap || !guestWrap || !visitorWrap) return;
 
     memberWrap.style.display = value === "MEMBER" ? "" : "none";
     guestWrap.style.display = value === "GUEST" ? "" : "none";
     visitorWrap.style.display = value === "VISITOR" ? "" : "none";
 
+    if (!emailInput) return;
+
     emailInput.value = "";
 
     if (value === "MEMBER") {
-      const selected = memberSelect.selectedOptions?.[0];
+      const selected = memberSelect?.selectedOptions?.[0];
       emailInput.value = selected?.dataset.email || "";
     }
 
     if (value === "GUEST") {
-      const selected = guestSelect.selectedOptions?.[0];
+      const selected = guestSelect?.selectedOptions?.[0];
       emailInput.value = selected?.dataset.email || "";
     }
   }
@@ -1319,7 +1218,6 @@ agendaRoleForm?.addEventListener("submit", async (event) => {
   sourceType?.addEventListener("change", updateParticipantSourceUI);
   memberSelect?.addEventListener("change", updateParticipantSourceUI);
   guestSelect?.addEventListener("change", updateParticipantSourceUI);
-
   updateParticipantSourceUI();
 
   form?.addEventListener("submit", async (event) => {
@@ -1370,431 +1268,19 @@ agendaRoleForm?.addEventListener("submit", async (event) => {
       });
 
       form.reset();
+      window.__keepMeetingScroll = true;
       await loadMeetingDetails();
     } catch (error) {
       message.textContent = error.message;
       button.disabled = false;
     }
   });
-  const agendaSpeechForm = document.getElementById("addAgendaSpeechForm");
 
-const speakerType = document.getElementById("speechSpeakerType");
-const memberSpeakerSelect =  document.getElementById("speechMemberSpeakerSelect");
-const speechPathway =  document.getElementById("speechPathway");
-const speechLevel =  document.getElementById("speechLevel");
-function updateSpeechEducationFields() {
-  if (speakerType?.value !== "MEMBER") return;
-
-  const selected =
-    memberSpeakerSelect?.selectedOptions?.[0];
-
-  const pathway =
-    selected?.dataset.pathway || "";
-
-  const completedLevel =
-    Number(selected?.dataset.level || 0);
-
-  const nextLevel =
-    Math.min(completedLevel + 1, 5);
-
-  speechPathway.value = pathway;
-  speechLevel.value = pathway ? String(nextLevel) : "0";
-}
-  
-const memberSpeakerWrap = document.getElementById("speechMemberSpeakerWrap");
-const guestSpeakerWrap = document.getElementById("speechGuestSpeakerWrap");
-const visitorSpeakerWrap = document.getElementById("speechVisitorSpeakerWrap");
-
-const evaluatorType = document.getElementById("speechEvaluatorType");
-const memberEvaluatorWrap = document.getElementById("speechMemberEvaluatorWrap");
-const guestEvaluatorWrap = document.getElementById("speechGuestEvaluatorWrap");
-const visitorEvaluatorWrap = document.getElementById("speechVisitorEvaluatorWrap");
-
-function updateSpeechSpeakerUI() {
-  const value = speakerType?.value || "MEMBER";
-
-  memberSpeakerWrap.style.display = value === "MEMBER" ? "" : "none";
-  guestSpeakerWrap.style.display = value === "GUEST" ? "" : "none";
-  visitorSpeakerWrap.style.display = value === "VISITOR" ? "" : "none";
-}
-
-function updateSpeechEvaluatorUI() {
-  const value = evaluatorType?.value || "";
-
-  memberEvaluatorWrap.style.display = value === "MEMBER" ? "" : "none";
-  guestEvaluatorWrap.style.display = value === "GUEST" ? "" : "none";
-  visitorEvaluatorWrap.style.display = value === "VISITOR" ? "" : "none";
-}
-
-speakerType?.addEventListener("change", updateSpeechSpeakerUI);
-evaluatorType?.addEventListener("change", updateSpeechEvaluatorUI);
-speakerType?.addEventListener("change", updateSpeechEducationFields);
-memberSpeakerSelect?.addEventListener("change", updateSpeechEducationFields);
-  
-updateSpeechSpeakerUI();
-updateSpeechEvaluatorUI();
-updateSpeechEducationFields();
-agendaSpeechForm?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const message = document.getElementById("agendaSpeechMessage");
-  const button = document.getElementById("addAgendaSpeechBtn");
-
-  let plannedSpeakerId = "";
-  let plannedSpeakerName = "";
-  let plannedSpeakerEmail = "";
-
-  if (speakerType.value === "MEMBER") {
-    const selected = document.getElementById("speechMemberSpeakerSelect").selectedOptions?.[0];
-    plannedSpeakerId = document.getElementById("speechMemberSpeakerSelect").value;
-    plannedSpeakerName = selected?.dataset.name || "";
-    plannedSpeakerEmail = selected?.dataset.email || "";
-  }
-
-  if (speakerType.value === "GUEST") {
-    const selected = document.getElementById("speechGuestSpeakerSelect").selectedOptions?.[0];
-    plannedSpeakerId = document.getElementById("speechGuestSpeakerSelect").value;
-    plannedSpeakerName = selected?.dataset.name || "";
-    plannedSpeakerEmail = selected?.dataset.email || "";
-  }
-
-  if (speakerType.value === "VISITOR") {
-    plannedSpeakerName = document.getElementById("speechVisitorSpeakerName").value;
-  }
-
-  let plannedEvaluatorId = "";
-  let plannedEvaluatorName = "";
-  let plannedEvaluatorEmail = "";
-
-  if (evaluatorType.value === "MEMBER") {
-    const selected = document.getElementById("speechMemberEvaluatorSelect").selectedOptions?.[0];
-    plannedEvaluatorId = document.getElementById("speechMemberEvaluatorSelect").value;
-    plannedEvaluatorName = selected?.dataset.name || "";
-    plannedEvaluatorEmail = selected?.dataset.email || "";
-  }
-
-  if (evaluatorType.value === "GUEST") {
-    const selected = document.getElementById("speechGuestEvaluatorSelect").selectedOptions?.[0];
-    plannedEvaluatorId = document.getElementById("speechGuestEvaluatorSelect").value;
-    plannedEvaluatorName = selected?.dataset.name || "";
-    plannedEvaluatorEmail = selected?.dataset.email || "";
-  }
-
-  if (evaluatorType.value === "VISITOR") {
-    plannedEvaluatorName = document.getElementById("speechVisitorEvaluatorName").value;
-  }
-
-  if (!plannedSpeakerName) {
-    message.textContent = "Please select or enter a speaker.";
-    return;
-  }
-
-  message.textContent = "Adding planned speech...";
-  button.disabled = true;
-
-  try {
-    await apiRequest(`/api/meetings/${currentMeetingId}/agenda-speeches`, {
-      method: "POST",
-      body: {
-        plannedSpeakerType: speakerType.value,
-        plannedSpeakerId,
-        plannedSpeakerName,
-        plannedSpeakerEmail,
-
-        speechTitle: document.getElementById("speechTitle").value,
-        speechType: document.getElementById("speechType").value,
-        pathwayName: document.getElementById("speechPathway").value,
-        levelNumber: document.getElementById("speechLevel").value,
-        projectName: document.getElementById("speechProject").value,
-        plannedDurationMin: document.getElementById("speechDuration").value,
-        notes: document.getElementById("speechNotes").value,
-
-        plannedEvaluatorType: evaluatorType.value,
-        plannedEvaluatorId,
-        plannedEvaluatorName,
-        plannedEvaluatorEmail,
-
-        speechStatus: "PLANNED"
-      }
-    });
-
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-    button.disabled = false;
-  }
-});
-  const tableTopicForm = document.getElementById("addTableTopicForm");
-
-tableTopicForm?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const message = document.getElementById("tableTopicMessage");
-  const button = document.getElementById("addTableTopicBtn");
-  const select = document.getElementById("tableTopicParticipantSelect");
-  const selected = select?.selectedOptions?.[0];
-
-  if (!selected?.value) {
-    message.textContent = "Please select a participant.";
-    return;
-  }
-
-  message.textContent = "Adding Table Topics participant...";
-  button.disabled = true;
-
-  try {
-    await apiRequest(`/api/meetings/${currentMeetingId}/table-topics`, {
-      method: "POST",
-      body: {
-        participantRefId: selected.value,
-        participantType: selected.dataset.type,
-        participantId: selected.dataset.participantId,
-        participantName: selected.dataset.name,
-        participantEmail: selected.dataset.email
-      }
-    });
-
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-    button.disabled = false;
-  }
-});
-
-document.querySelectorAll("[data-delete-table-topic]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const topicId = button.dataset.deleteTableTopic;
-
-    if (!confirm("Remove this Table Topics participant?")) {
-      return;
-    }
-
-    button.disabled = true;
-    button.textContent = "Removing...";
-
-    try {
-      await apiRequest(
-        `/api/meetings/${currentMeetingId}/table-topics/${topicId}`,
-        { method: "DELETE" }
-      );
-
-      await loadMeetingDetails();
-    } catch (error) {
-      alert(error.message);
-      button.disabled = false;
-      button.textContent = "Remove";
-    }
-  });
-});
-
-  const generateAwardCandidatesBtn =
-  document.getElementById("generateAwardCandidatesBtn");
-
-generateAwardCandidatesBtn?.addEventListener("click", async () => {
-  const message = document.getElementById("awardCandidatesMessage");
-
-  message.textContent = "Generating award candidates...";
-  generateAwardCandidatesBtn.disabled = true;
-
-  try {
-    const response = await apiRequest(
-      `/api/meetings/${currentMeetingId}/award-candidates/generate`,
-      {
-        method: "POST"
-      }
-    );
-
-    message.textContent =
-      `Generated ${response.data?.inserted || 0} award candidates.`;
-
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-    generateAwardCandidatesBtn.disabled = false;
-  }
-});
-
-document.querySelectorAll("[data-toggle-award-candidate]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const candidateId = button.dataset.toggleAwardCandidate;
-    const isCurrentlyExcluded =
-      Number(button.dataset.currentExcluded || 0) === 1;
-
-    button.disabled = true;
-    button.textContent = isCurrentlyExcluded
-      ? "Including..."
-      : "Excluding...";
-
-    try {
-      await apiRequest(
-        `/api/meetings/${currentMeetingId}/award-candidates/${candidateId}`,
-        {
-          method: "PUT",
-          body: {
-            isExcluded: !isCurrentlyExcluded
-          }
-        }
-      );
-
-      await loadMeetingDetails();
-    } catch (error) {
-      alert(error.message);
-      button.disabled = false;
-    }
-  });
-});
-  const openVotingBtn = document.getElementById("openVotingBtn");
-
-openVotingBtn?.addEventListener("click", async () => {
-  const message = document.getElementById("awardCandidatesMessage");
-
-  message.textContent = "Opening voting...";
-  openVotingBtn.disabled = true;
-
-  try {
-    await apiRequest(
-      `/api/meetings/${currentMeetingId}/voting/open`,
-      {
-        method: "POST"
-      }
-    );
-
-    window.__keepMeetingScroll = true;
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-    openVotingBtn.disabled = false;
-  }
-});
-
-  const closeVotingBtn = document.getElementById("closeVotingBtn");
-
-closeVotingBtn?.addEventListener("click", async () => {
-  const message = document.getElementById("awardCandidatesMessage");
-
-  if (!confirm("Close voting for this meeting?")) {
-    return;
-  }
-
-  message.textContent = "Closing voting...";
-  closeVotingBtn.disabled = true;
-
-  try {
-    await apiRequest(
-      `/api/meetings/${currentMeetingId}/voting/close`,
-      {
-        method: "POST"
-      }
-    );
-
-    window.__keepMeetingScroll = true;
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-    closeVotingBtn.disabled = false;
-  }
-});
-
-document.getElementById("copyVotingLinkBtn")?.addEventListener("click", async () => {
-  const input = document.getElementById("votingLinkInput");
-
-  if (!input?.value) return;
-
-  await navigator.clipboard.writeText(input.value);
-
-  const message = document.getElementById("awardCandidatesMessage");
-  message.textContent = "Voting link copied.";
-});
-
-  document.getElementById("finalizeAwardsBtn")?.addEventListener("click", async () => {
-  const message = document.getElementById("awardCandidatesMessage");
-
-  const winners = [
-    ...document.querySelectorAll("[data-award-winner]")
-  ].map((select) => {
-    const selected = select.selectedOptions?.[0];
-
-    if (!select.value || !selected) return null;
-
-    return {
-      awardKey: selected.dataset.awardKey,
-      awardName: selected.dataset.awardName,
-      candidateId: select.value,
-      participantName: selected.dataset.participantName
-    };
-  }).filter(Boolean);
-
-  if (!winners.length) {
-    message.textContent = "Please select winners before finalizing.";
-    return;
-  }
-
-  if (!confirm("Finalize these award winners?")) {
-    return;
-  }
-
-  try {
-    await apiRequest(
-      `/api/meetings/${currentMeetingId}/voting/finalize`,
-      {
-        method: "POST",
-        body: { winners }
-      }
-    );
-
-    message.textContent = "Awards finalized successfully.";
-    window.__keepMeetingScroll = true;
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-  }
-});
-  document.getElementById("closeMeetingBtn")?.addEventListener("click", async () => {
-  const message = document.getElementById("closeMeetingMessage");
-
-  if (!confirm("Close this meeting? This will mark it as completed.")) {
-    return;
-  }
-
-  message.textContent = "Closing meeting...";
-
-  try {
-    await apiRequest(
-      `/api/meetings/${currentMeetingId}/close`,
-      {
-        method: "POST"
-      }
-    );
-
-    window.__keepMeetingScroll = true;
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-  }
-});
-document.getElementById("reopenMeetingBtn")?.addEventListener("click", async () => {
-  const message = document.getElementById("closeMeetingMessage");
-
-  if (!confirm("Reopen this meeting for corrections?")) {
-    return;
-  }
-
-  message.textContent = "Reopening meeting...";
-
-  try {
-    await apiRequest(
-      `/api/meetings/${currentMeetingId}/reopen`,
-      {
-        method: "POST"
-      }
-    );
-
-    window.__keepMeetingScroll = true;
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-  }
-});
+  bindAgendaRoleEvents();
+  bindAgendaSpeechEvents();
+  bindTableTopicEvents();
+  bindAwardEvents();
+  bindCloseMeetingEvents();
 }
 
 
