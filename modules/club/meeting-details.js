@@ -2040,7 +2040,7 @@ function bindAgendaSpeechEvents() {
       }
 
       
-      await apiRequest(`/api/meetings/${currentMeetingId}/speeches`, {
+      await apiRequest(`/api/meetings/${currentMeetingId}/agenda-speeches`, {
         method: "POST",
         body
       });
