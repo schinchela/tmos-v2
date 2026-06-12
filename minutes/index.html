@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>TMOS Meeting Minutes</title>
+
+  <style>
+    :root {
+      --bg: #070b16;
+      --panel: rgba(255,255,255,0.08);
+      --text: #eef4ff;
+      --muted: #9fb0cc;
+      --line: rgba(255,255,255,0.12);
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left,#1a1d46 0%,#070b16 55%),
+        #070b16;
+      color: var(--text);
+      font-family: Inter, Segoe UI, sans-serif;
+      padding: 32px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero,
+    .module-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: .2em;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    h1 {
+      margin: 12px 0;
+      font-size: 2.5rem;
+    }
+
+    h3 { margin: 0; }
+
+    .panel-header { margin-bottom: 16px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: .85rem;
+      text-transform: uppercase;
+    }
+
+    .error { color: #ff8a8a; }
+
+    .loading {
+      color: var(--muted);
+      text-align: center;
+      padding: 40px;
+    }
+
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    @media print {
+      body {
+        background: white;
+        color: black;
+        padding: 0;
+      }
+
+      .hero,
+      .module-panel {
+        background: white;
+        color: black;
+        border: 1px solid #ddd;
+        box-shadow: none;
+        page-break-inside: avoid;
+      }
+
+      button { display: none; }
+
+      .eyebrow,
+      th {
+        color: #333;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <section class="hero">
+    <p class="eyebrow">TMOS MEETING MINUTES</p>
+
+    <h1 id="meetingTitle">Loading...</h1>
+
+    <p id="meetingMeta"></p>
+
+    <div style="margin-top:20px;">
+      <button onclick="window.print()">
+        Print / Save PDF
+      </button>
+    </div>
+  </section>
+
+  <div
+    id="minutesContent"
+    class="loading"
+  >
+    Loading minutes...
+  </div>
+
+</div>
+
+<script>
+const API_URL =
+  "https://api.tmos.rowepal.com";
+
+const token =
+  new URLSearchParams(
+    window.location.search
+  ).get("token") || "";
+
+if (!token) {
+  document.getElementById("meetingTitle").textContent =
+    "Minutes Link Missing";
+
+  document.getElementById("minutesContent").innerHTML = `
+    <div class="module-panel error">
+      Please open a published minutes link.
+    </div>
+  `;
+} else {
+  loadMinutes();
+}
+
+async function loadMinutes() {
+  try {
+    const response = await fetch(
+      `${API_URL}/api/public-minutes/${token}`
+    );
+
+    const result =
+      await response.json();
+
+    if (!result.success) {
+      throw new Error(
+        result.error || "Minutes not found"
+      );
+    }
+
+    renderMinutes(result.data);
+  } catch (error) {
+    document.getElementById("minutesContent").innerHTML = `
+      <div class="module-panel error">
+        ${error.message}
+      </div>
+    `;
+  }
+}
+
+function renderMinutes(data) {
+  const meeting =
+    data.meeting || {};
+
+  document.getElementById("meetingTitle").textContent =
+    meeting.meeting_title || "Meeting Minutes";
+
+  document.getElementById("meetingMeta").textContent =
+    [
+      meeting.meeting_date,
+      meeting.meeting_theme
+    ]
+      .filter(Boolean)
+      .join(" • ");
+
+  document.getElementById("minutesContent").innerHTML =
+    renderMeetingInfo(meeting) +
+    renderAttendance(data.attendance || {}) +
+    renderRoles(data.roles || []) +
+    renderSpeeches(data.speeches || []) +
+    renderTableTopics(data.tableTopics || []) +
+    renderAwards(data.awards || []) +
+    renderNotes(data.minutes || {});
+}
+
+function renderMeetingInfo(meeting) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Meeting Information</h3>
+      </div>
+
+      <table>
+        <tbody>
+          <tr><td>Theme</td><td>${meeting.meeting_theme || "-"}</td></tr>
+          <tr><td>Date</td><td>${meeting.meeting_date || "-"}</td></tr>
+          <tr><td>Start Time</td><td>${meeting.start_time || "-"}</td></tr>
+          <tr><td>End Time</td><td>${meeting.end_time || "-"}</td></tr>
+          <tr><td>Venue</td><td>${meeting.venue || "-"}</td></tr>
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderAttendance(attendance) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Attendance Summary</h3>
+      </div>
+
+      <table>
+        <tbody>
+          <tr>
+            <td>Members Present</td>
+            <td>${attendance.membersPresent ?? 0}</td>
+          </tr>
+
+          <tr>
+            <td>Guests Present</td>
+            <td>${attendance.guestsPresent ?? 0}</td>
+          </tr>
+
+          <tr>
+            <td>Total Present</td>
+            <td>${attendance.totalPresent ?? 0}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderRoles(roles) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Agenda Roles</h3>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Assigned To</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${roles.map(role => `
+            <tr>
+              <td>${role.role_name || "-"}</td>
+              <td>${role.planned_display_name || "-"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderSpeeches(speeches) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Prepared Speeches</h3>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Speaker</th>
+            <th>Speech Title</th>
+            <th>Evaluator</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${speeches.map(speech => `
+            <tr>
+              <td>${speech.planned_speaker_name || "-"}</td>
+              <td>${speech.speech_title || "-"}</td>
+              <td>${speech.planned_evaluator_name || "-"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderTableTopics(participants) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Table Topics</h3>
+      </div>
+
+      <table>
+        <tbody>
+          ${participants.map(person => `
+            <tr>
+              <td>${person.participant_name || "-"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderAwards(awards) {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Awards</h3>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Award</th>
+            <th>Winner</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${awards.map(award => `
+            <tr>
+              <td>${award.award_name || "-"}</td>
+              <td>${award.winner_name || award.participant_name || "-"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function renderNotes(minutes) {
+  const notes =
+    minutes.general_notes ||
+    minutes.notes ||
+    "";
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Additional Minutes Notes</h3>
+      </div>
+
+      <p>${notes || "-"}</p>
+    </section>
+  `;
+}
+</script>
+
+</body>
+</html>
