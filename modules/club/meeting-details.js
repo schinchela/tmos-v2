@@ -1281,8 +1281,261 @@ function bindMeetingCommandCenterEvents() {
   bindTableTopicEvents();
   bindAwardEvents();
   bindCloseMeetingEvents();
+  
+}
+function bindAgendaRoleEvents() {
+  const agendaRoleForm = document.getElementById("addAgendaRoleForm");
+  const agendaRoleSourceType = document.getElementById("agendaRoleSourceType");
+  const agendaMemberWrap = document.getElementById("agendaMemberWrap");
+  const agendaGuestWrap = document.getElementById("agendaGuestWrap");
+  const agendaVisitorWrap = document.getElementById("agendaVisitorWrap");
+
+  function updateAgendaSourceUI() {
+    const value = agendaRoleSourceType?.value || "";
+
+    if (!agendaMemberWrap || !agendaGuestWrap || !agendaVisitorWrap) return;
+
+    agendaMemberWrap.style.display = value === "MEMBER" ? "" : "none";
+    agendaGuestWrap.style.display = value === "GUEST" ? "" : "none";
+    agendaVisitorWrap.style.display = value === "VISITOR" ? "" : "none";
+  }
+
+  agendaRoleSourceType?.addEventListener("change", updateAgendaSourceUI);
+  updateAgendaSourceUI();
+
+  agendaRoleForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = document.getElementById("agendaRoleMessage");
+    const button = document.getElementById("addAgendaRoleBtn");
+    const roleSelect = document.getElementById("agendaRoleSelect");
+
+    const selectedRole = roleSelect.selectedOptions?.[0];
+    const sourceType = agendaRoleSourceType.value;
+
+    let plannedParticipantId = "";
+    let plannedDisplayName = "";
+    let plannedEmail = "";
+
+    if (sourceType === "MEMBER") {
+      const selected = document.getElementById("agendaMemberSelect").selectedOptions?.[0];
+      plannedParticipantId = document.getElementById("agendaMemberSelect").value;
+      plannedDisplayName = selected?.dataset.name || "";
+      plannedEmail = selected?.dataset.email || "";
+    }
+
+    if (sourceType === "GUEST") {
+      const selected = document.getElementById("agendaGuestSelect").selectedOptions?.[0];
+      plannedParticipantId = document.getElementById("agendaGuestSelect").value;
+      plannedDisplayName = selected?.dataset.name || "";
+      plannedEmail = selected?.dataset.email || "";
+    }
+
+    if (sourceType === "VISITOR") {
+      plannedDisplayName = document.getElementById("agendaVisitorName").value;
+    }
+
+    if (!roleSelect.value) {
+      message.textContent = "Please select a role.";
+      return;
+    }
+
+    message.textContent = "Adding planned role...";
+    button.disabled = true;
+
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}/agenda-roles`, {
+        method: "POST",
+        body: {
+          roleCode: roleSelect.value,
+          roleName: selectedRole?.dataset.name || roleSelect.value,
+          assignmentStatus: plannedDisplayName ? "PLANNED" : "UNASSIGNED",
+          sequenceOrder: 0,
+          plannedParticipantType: sourceType || "",
+          plannedParticipantId,
+          plannedDisplayName,
+          plannedEmail,
+          notes: document.getElementById("agendaRoleNotes").value
+        }
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+}
+function bindTableTopicEvents() {
+  const tableTopicForm = document.getElementById("addTableTopicForm");
+
+  tableTopicForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = document.getElementById("tableTopicMessage");
+    const button = document.getElementById("addTableTopicBtn");
+    const select = document.getElementById("tableTopicParticipantSelect");
+    const selected = select?.selectedOptions?.[0];
+
+    if (!selected?.value) {
+      message.textContent = "Please select a participant.";
+      return;
+    }
+
+    message.textContent = "Adding Table Topics participant...";
+    button.disabled = true;
+
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}/table-topics`, {
+        method: "POST",
+        body: {
+          participantRefId: selected.value,
+          participantType: selected.dataset.type,
+          participantId: selected.dataset.participantId,
+          participantName: selected.dataset.name,
+          participantEmail: selected.dataset.email
+        }
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+
+  document.querySelectorAll("[data-delete-table-topic]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const topicId = button.dataset.deleteTableTopic;
+
+      if (!confirm("Remove this Table Topics participant?")) return;
+
+      button.disabled = true;
+      button.textContent = "Removing...";
+
+      try {
+        await apiRequest(
+          `/api/meetings/${currentMeetingId}/table-topics/${topicId}`,
+          { method: "DELETE" }
+        );
+
+        window.__keepMeetingScroll = true;
+        await loadMeetingDetails();
+      } catch (error) {
+        alert(error.message);
+        button.disabled = false;
+        button.textContent = "Remove";
+      }
+    });
+  });
 }
 
+function bindTableTopicEvents() {
+  const tableTopicForm = document.getElementById("addTableTopicForm");
+
+  tableTopicForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = document.getElementById("tableTopicMessage");
+    const button = document.getElementById("addTableTopicBtn");
+    const select = document.getElementById("tableTopicParticipantSelect");
+    const selected = select?.selectedOptions?.[0];
+
+    if (!selected?.value) {
+      message.textContent = "Please select a participant.";
+      return;
+    }
+
+    message.textContent = "Adding Table Topics participant...";
+    button.disabled = true;
+
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}/table-topics`, {
+        method: "POST",
+        body: {
+          participantRefId: selected.value,
+          participantType: selected.dataset.type,
+          participantId: selected.dataset.participantId,
+          participantName: selected.dataset.name,
+          participantEmail: selected.dataset.email
+        }
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+
+  document.querySelectorAll("[data-delete-table-topic]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const topicId = button.dataset.deleteTableTopic;
+
+      if (!confirm("Remove this Table Topics participant?")) return;
+
+      button.disabled = true;
+      button.textContent = "Removing...";
+
+      try {
+        await apiRequest(
+          `/api/meetings/${currentMeetingId}/table-topics/${topicId}`,
+          { method: "DELETE" }
+        );
+
+        window.__keepMeetingScroll = true;
+        await loadMeetingDetails();
+      } catch (error) {
+        alert(error.message);
+        button.disabled = false;
+        button.textContent = "Remove";
+      }
+    });
+  });
+}
+
+function bindCloseMeetingEvents() {
+  document.getElementById("closeMeetingBtn")?.addEventListener("click", async () => {
+    const message = document.getElementById("closeMeetingMessage");
+
+    if (!confirm("Close this meeting? This will mark it as completed.")) return;
+
+    message.textContent = "Closing meeting...";
+
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}/close`, {
+        method: "POST"
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  });
+
+  document.getElementById("reopenMeetingBtn")?.addEventListener("click", async () => {
+    const message = document.getElementById("closeMeetingMessage");
+
+    if (!confirm("Reopen this meeting for corrections?")) return;
+
+    message.textContent = "Reopening meeting...";
+
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}/reopen`, {
+        method: "POST"
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  });
+}
 
 
 export async function initMeetingDetails() {
