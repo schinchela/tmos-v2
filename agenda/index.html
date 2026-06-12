@@ -13,7 +13,6 @@
     :root {
       --bg: #070b16;
       --panel: rgba(255,255,255,0.08);
-      --panel-strong: rgba(255,255,255,0.12);
       --text: #eef4ff;
       --muted: #9fb0cc;
       --line: rgba(255,255,255,0.12);
@@ -46,10 +45,9 @@
     .hero,
     .module-panel {
       background: var(--panel);
-      backdrop-filter: blur(20px);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 28px;
+      padding: 24px;
       margin-bottom: 24px;
     }
 
@@ -62,7 +60,11 @@
 
     h1 {
       margin: 12px 0;
-      font-size: 3rem;
+      font-size: 2.5rem;
+    }
+
+    h3 {
+      margin: 0;
     }
 
     .panel-header {
@@ -83,9 +85,8 @@
 
     th {
       color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .08em;
       font-size: .85rem;
+      text-transform: uppercase;
     }
 
     .error {
@@ -96,6 +97,10 @@
       color: var(--muted);
       text-align: center;
       padding: 40px;
+    }
+
+    a {
+      color: #8cb8ff;
     }
   </style>
 </head>
@@ -129,17 +134,16 @@
 const API_URL =
   "https://api.tmos.rowepal.com";
 
-const match =
-  window.location.pathname.match(/^\/agenda\/([^/]+)$/);
-
 const token =
-  match ? match[1] : "";
+  new URLSearchParams(
+    window.location.search
+  ).get("token") || "";
 
 if (!token) {
   document.getElementById(
     "meetingTitle"
   ).textContent =
-    "Agenda link missing";
+    "Agenda Link Missing";
 
   document.getElementById(
     "agendaContent"
@@ -244,7 +248,13 @@ function renderMeetingInfo(meeting) {
 
           <tr>
             <td>Online Link</td>
-            <td>${meeting.online_link || "-"}</td>
+            <td>
+              ${
+                meeting.online_link
+                  ? `<a href="${meeting.online_link}" target="_blank">${meeting.online_link}</a>`
+                  : "-"
+              }
+            </td>
           </tr>
         </tbody>
       </table>
