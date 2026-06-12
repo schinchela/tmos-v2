@@ -4520,7 +4520,8 @@ async function publishMeetingAgenda(request, env, meetingId) {
     }, 404);
   }
 
-  const token = meetingDateToken(meeting.meeting_date);
+  const token =
+    meetingDateToken(meeting.meeting_date);
 
   await executeClubStatement(
     env,
@@ -4582,17 +4583,22 @@ async function getMeetingAgendaPublication(request, env, meetingId) {
     result?.results?.[0] ||
     null;
 
+  if (!row) {
+    return json({
+      success: true,
+      data: {
+        published: false
+      }
+    });
+  }
+
   return json({
     success: true,
-    data: row
-      ? {
-          published: Number(row.is_published) === 1,
-          token: row.public_token,
-          url: `${FRONTEND_URL}/agenda/${row.public_token}`
-        }
-      : {
-          published: false
-        }
+    data: {
+      published: Number(row.is_published) === 1,
+      token: row.public_token,
+      url: `${FRONTEND_URL}/agenda/${row.public_token}`
+    }
   });
 }
 
