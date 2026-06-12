@@ -4284,7 +4284,98 @@ WHERE id = ${sqlValue(meetingId)}
   });
 }
 
+async function updateMeetingParticipant(
+  request,
+  env,
+  meetingId,
+  participantId
+) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  const editable = await assertMeetingEditable(
+    env,
+    auth.user.club_id,
+    meetingId
+  );
+
+  if (!editable.ok) return editable.response;
+
+  const body = await request.json();
+
+  const displayName = String(
+    body.displayName || ""
+  ).trim();
+
+  if (!displayName) {
+    return json(
+      {
+        success: false,
+        error: "Display name is required"
+      },
+      400
+    );
+  }
+
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meeting_participants
+      SET
+        display_name = ${sqlValue(displayName)},
+        email = ${sqlValue(body.email)},
+        attendance_status = ${sqlValue(
+          body.attendanceStatus || "PRESENT"
+        )},
+        notes = ${sqlValue(body.notes)},
+        updated_at = ${sqlValue(timestamp)}
+      WHERE id = ${sqlValue(participantId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: participantId
+    }
+  });
+}
+
+async function deleteMeetingParticipant(
+  request,
+  env,
+  meetingId,
+  participantId
+) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const editable = await assertMeetingEditable(
+    env,
+    auth.user.club_id,
+    meetingId
+  );
+
+  if (!editable.ok) return editable.response;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_participants
+      WHERE id = ${sqlValue(participantId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -5226,7 +5317,11 @@ async function handleRequest(request, env) {
   if (closeMeetingMatch && request.method === "POST") { return closeMeeting(request,env,closeMeetingMatch[1]);}
   const reopenMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/reopen$/);
   if (reopenMeetingMatch && request.method === "POST") {return reopenMeeting(request,env,reopenMeetingMatch[1]);}
-  
+  if (pathParts.length === 5 &&  pathParts[0] === "api" &&  pathParts[1] === "meetings" &&  pathParts[3] === "participants" &&  request.method === "PUT") {  return updateMeetingParticipant(request,env,pathParts[2],pathParts[4]);}  
+  if (pathParts.length === 5 &&  pathParts[0] === "api" &&  pathParts[1] === "meetings" &&  pathParts[3] === "participants" &&  request.method === "DELETE") {  return deleteMeetingParticipant(request,env,pathParts[2],pathParts[4]);}
+
+
+
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
