@@ -491,422 +491,299 @@ async function ensureTable(
     [createSql]
   );
 }
-async function applyMigration018(
+
+async function ensureColumns(
   env,
-  databaseId
+  databaseId,
+  tableName,
+  columnDefinitions
 ) {
-  await ensureColumn(
+  const columns = await getTableColumns(
     env,
     databaseId,
-    "meeting_speeches",
-    "planned_speaker_type",
-    "TEXT"
+    tableName
   );
 
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_speeches",
-    "planned_speaker_id",
-    "TEXT"
+  const existingNames = new Set(
+    columns.map((column) => column.name)
   );
 
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_speeches",
-    "planned_speaker_name",
-    "TEXT"
-  );
+  const statements = [];
 
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_speeches",
-    "planned_speaker_email",
-    "TEXT"
-  );
+  for (const [columnName, columnDefinition] of columnDefinitions) {
+    if (!existingNames.has(columnName)) {
+      statements.push(
+        `
+          ALTER TABLE ${tableName}
+          ADD COLUMN ${columnName}
+          ${columnDefinition}
+        `
+      );
+    }
+  }
 
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_speeches",
-    "planned_evaluator_type",
-    "TEXT"
-  );
+  if (statements.length) {
+    await runCloudflareD1Batch(
+      env,
+      databaseId,
+      statements
+    );
+  }
+}
 
-  await ensureColumn(
+async function applyMigration018(env, databaseId) {
+  await ensureColumns(
     env,
     databaseId,
     "meeting_speeches",
-    "planned_evaluator_id",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_speeches",
-    "planned_evaluator_name",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_speeches",
-    "planned_evaluator_email",
-    "TEXT"
+    [
+      ["planned_speaker_type", "TEXT"],
+      ["planned_speaker_id", "TEXT"],
+      ["planned_speaker_name", "TEXT"],
+      ["planned_speaker_email", "TEXT"],
+      ["planned_evaluator_type", "TEXT"],
+      ["planned_evaluator_id", "TEXT"],
+      ["planned_evaluator_name", "TEXT"],
+      ["planned_evaluator_email", "TEXT"]
+    ]
   );
 }
 
-async function applyMigration019(
-  env,
-  databaseId
-) {
-  await ensureColumn(
+async function applyMigration019(env, databaseId) {
+  await ensureColumns(
     env,
     databaseId,
     "members",
-    "recognition_suffix",
-    "TEXT"
+    [
+      ["recognition_suffix", "TEXT"]
+    ]
   );
 }
+
 async function applyMigration020(env, databaseId) {
-  await ensureColumn(
+  await ensureColumns(
     env,
     databaseId,
     "meeting_table_topics",
-    "participant_type",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_table_topics",
-    "participant_id",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_table_topics",
-    "participant_name",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_table_topics",
-    "participant_email",
-    "TEXT"
+    [
+      ["participant_type", "TEXT"],
+      ["participant_id", "TEXT"],
+      ["participant_name", "TEXT"],
+      ["participant_email", "TEXT"]
+    ]
   );
 }
 
 async function applyMigration021(env, databaseId) {
-  await ensureTable(
+  await runCloudflareD1Batch(
     env,
     databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS meeting_award_candidates (
-        id TEXT PRIMARY KEY,
+    [
+      `
+        CREATE TABLE IF NOT EXISTS meeting_award_candidates (
+          id TEXT PRIMARY KEY,
 
-        meeting_id TEXT NOT NULL,
+          meeting_id TEXT NOT NULL,
 
-        award_config_id TEXT NOT NULL,
-        award_key TEXT NOT NULL,
-        award_name TEXT NOT NULL,
+          award_config_id TEXT NOT NULL,
+          award_key TEXT NOT NULL,
+          award_name TEXT NOT NULL,
 
-        participant_type TEXT,
-        participant_id TEXT,
+          participant_type TEXT,
+          participant_id TEXT,
 
-        participant_name TEXT,
-        participant_email TEXT,
+          participant_name TEXT,
+          participant_email TEXT,
 
-        source_type TEXT,
-        source_record_id TEXT,
+          source_type TEXT,
+          source_record_id TEXT,
 
-        is_excluded INTEGER DEFAULT 0,
+          is_excluded INTEGER DEFAULT 0,
 
-        created_at TEXT,
-        updated_at TEXT
-      )
-    `
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_award_candidates_meeting",
-    "meeting_award_candidates",
-    "meeting_id"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_award_candidates_award",
-    "meeting_award_candidates",
-    "award_key"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_award_candidates_source",
-    "meeting_award_candidates",
-    "source_type, source_record_id"
+          created_at TEXT,
+          updated_at TEXT
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_award_candidates_meeting
+        ON meeting_award_candidates(meeting_id)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_award_candidates_award
+        ON meeting_award_candidates(award_key)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_award_candidates_source
+        ON meeting_award_candidates(source_type, source_record_id)
+      `
+    ]
   );
 }
 
 async function applyMigration022(env, databaseId) {
-  await ensureColumn(
+  await ensureColumns(
     env,
     databaseId,
     "meeting_role_assignments",
-    "planned_participant_type",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_role_assignments",
-    "planned_participant_id",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_role_assignments",
-    "planned_display_name",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meeting_role_assignments",
-    "planned_email",
-    "TEXT"
+    [
+      ["planned_participant_type", "TEXT"],
+      ["planned_participant_id", "TEXT"],
+      ["planned_display_name", "TEXT"],
+      ["planned_email", "TEXT"]
+    ]
   );
 }
-
 async function applyMigration023(env, databaseId) {
-  await ensureTable(
+  await runCloudflareD1Batch(
     env,
     databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS meeting_vote_sessions (
-        id TEXT PRIMARY KEY,
-        meeting_id TEXT NOT NULL,
-        public_token TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'OPEN',
-        opened_at TEXT,
-        closed_at TEXT,
-        created_at TEXT,
-        updated_at TEXT
-      )
-    `
-  );
+    [
+      `
+        CREATE TABLE IF NOT EXISTS meeting_vote_sessions (
+          id TEXT PRIMARY KEY,
+          meeting_id TEXT NOT NULL,
+          public_token TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'OPEN',
+          opened_at TEXT,
+          closed_at TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_vote_sessions_meeting
+        ON meeting_vote_sessions(meeting_id)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_vote_sessions_token
+        ON meeting_vote_sessions(public_token)
+      `,
+      `
+        CREATE TABLE IF NOT EXISTS meeting_votes (
+          id TEXT PRIMARY KEY,
+          meeting_id TEXT NOT NULL,
+          vote_session_id TEXT NOT NULL,
 
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_vote_sessions_meeting",
-    "meeting_vote_sessions",
-    "meeting_id"
-  );
+          award_key TEXT NOT NULL,
+          award_name TEXT NOT NULL,
 
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_vote_sessions_token",
-    "meeting_vote_sessions",
-    "public_token"
-  );
+          candidate_id TEXT NOT NULL,
+          candidate_name TEXT NOT NULL,
 
-  await ensureTable(
-    env,
-    databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS meeting_votes (
-        id TEXT PRIMARY KEY,
-        meeting_id TEXT NOT NULL,
-        vote_session_id TEXT NOT NULL,
+          voter_name TEXT,
+          voter_email TEXT,
 
-        award_key TEXT NOT NULL,
-        award_name TEXT NOT NULL,
-
-        candidate_id TEXT NOT NULL,
-        candidate_name TEXT NOT NULL,
-
-        voter_name TEXT,
-        voter_email TEXT,
-
-        created_at TEXT
-      )
-    `
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_meeting_votes_session",
-    "meeting_votes",
-    "vote_session_id"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_meeting_votes_award",
-    "meeting_votes",
-    "meeting_id, award_key"
+          created_at TEXT
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_meeting_votes_session
+        ON meeting_votes(vote_session_id)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_meeting_votes_award
+        ON meeting_votes(meeting_id, award_key)
+      `
+    ]
   );
 }
 
 async function applyMigration024(env, databaseId) {
-  await ensureColumn(
+  await ensureColumns(
     env,
     databaseId,
     "meetings",
-    "locked_at",
-    "TEXT"
+    [
+      ["locked_at", "TEXT"],
+      ["locked_by", "TEXT"],
+      ["lock_reason", "TEXT"]
+    ]
   );
 
-  await ensureColumn(
+  await runCloudflareD1Batch(
     env,
     databaseId,
-    "meetings",
-    "locked_by",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meetings",
-    "lock_reason",
-    "TEXT"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_meetings_locked_at",
-    "meetings",
-    "locked_at"
+    [
+      `
+        CREATE INDEX IF NOT EXISTS idx_meetings_locked_at
+        ON meetings(locked_at)
+      `
+    ]
   );
 }
 
 async function applyMigration025(env, databaseId) {
-  await ensureTable(
+  await runCloudflareD1Batch(
     env,
     databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS guests (
-        id TEXT PRIMARY KEY,
-        display_name TEXT NOT NULL,
-        email TEXT,
-        phone TEXT,
-        organization TEXT,
-        guest_status TEXT NOT NULL DEFAULT 'ACTIVE',
-        first_seen_at TEXT,
-        last_seen_at TEXT,
-        notes TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_guests_email",
-    "guests",
-    "email"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_guests_status",
-    "guests",
-    "guest_status"
-  );
-
-  await ensureTable(
-    env,
-    databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS guest_attendance (
-        id TEXT PRIMARY KEY,
-        guest_id TEXT NOT NULL,
-        meeting_id TEXT,
-        meeting_date TEXT NOT NULL,
-        attendance_status TEXT NOT NULL DEFAULT 'PRESENT',
-        notes TEXT,
-        created_at TEXT NOT NULL
-      )
-    `
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_guest_attendance_guest",
-    "guest_attendance",
-    "guest_id"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_guest_attendance_meeting",
-    "guest_attendance",
-    "meeting_id"
-  );
-
-  await ensureTable(
-    env,
-    databaseId,
-    `
-      CREATE TABLE IF NOT EXISTS guest_awards (
-        id TEXT PRIMARY KEY,
-        guest_id TEXT NOT NULL,
-        meeting_id TEXT,
-        award_key TEXT,
-        award_name TEXT NOT NULL,
-        award_date TEXT,
-        source TEXT,
-        notes TEXT,
-        created_at TEXT NOT NULL
-      )
-    `
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_guest_awards_guest",
-    "guest_awards",
-    "guest_id"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_guest_awards_meeting",
-    "guest_awards",
-    "meeting_id"
+    [
+      `
+        CREATE TABLE IF NOT EXISTS guests (
+          id TEXT PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          email TEXT,
+          phone TEXT,
+          organization TEXT,
+          guest_status TEXT NOT NULL DEFAULT 'ACTIVE',
+          first_seen_at TEXT,
+          last_seen_at TEXT,
+          notes TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_guests_email
+        ON guests(email)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_guests_status
+        ON guests(guest_status)
+      `,
+      `
+        CREATE TABLE IF NOT EXISTS guest_attendance (
+          id TEXT PRIMARY KEY,
+          guest_id TEXT NOT NULL,
+          meeting_id TEXT,
+          meeting_date TEXT NOT NULL,
+          attendance_status TEXT NOT NULL DEFAULT 'PRESENT',
+          notes TEXT,
+          created_at TEXT NOT NULL
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_guest_attendance_guest
+        ON guest_attendance(guest_id)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_guest_attendance_meeting
+        ON guest_attendance(meeting_id)
+      `,
+      `
+        CREATE TABLE IF NOT EXISTS guest_awards (
+          id TEXT PRIMARY KEY,
+          guest_id TEXT NOT NULL,
+          meeting_id TEXT,
+          award_key TEXT,
+          award_name TEXT NOT NULL,
+          award_date TEXT,
+          source TEXT,
+          notes TEXT,
+          created_at TEXT NOT NULL
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_guest_awards_guest
+        ON guest_awards(guest_id)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_guest_awards_meeting
+        ON guest_awards(meeting_id)
+      `
+    ]
   );
 }
+
 
 async function applyMigration026(env, databaseId) {
   await ensureTable(
@@ -4613,151 +4490,115 @@ async function saveMeetingMinutes(request, env, meetingId) {
   });
 }
 
+async function getAppliedMigrationVersions(env, databaseId) {
+  try {
+    const result = await runCloudflareD1Query(
+      env,
+      databaseId,
+      `
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          version TEXT PRIMARY KEY,
+          applied_at TEXT NOT NULL
+        );
+
+        SELECT version
+        FROM schema_migrations;
+      `
+    );
+
+    const rows =
+      result?.[0]?.results ||
+      result?.[1]?.results ||
+      result?.results ||
+      [];
+
+    return new Set(rows.map((row) => row.version));
+  } catch (_) {
+    return new Set();
+  }
+}
+
+async function markMigrationApplied(env, databaseId, version) {
+  await runCloudflareD1Batch(
+    env,
+    databaseId,
+    [
+      `
+        INSERT OR IGNORE INTO schema_migrations
+        (version, applied_at)
+        VALUES
+        (${sqlValue(version)}, datetime('now'))
+      `
+    ]
+  );
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
+  const appliedVersions = await getAppliedMigrationVersions(env, databaseId);
 
   for (const migration of CLUB_MIGRATIONS) {
-    await runCloudflareD1Batch(env,databaseId,migration.sql);
+    if (appliedVersions.has(migration.version)) {
+      continue;
+    }
 
+    await runCloudflareD1Batch(
+      env,
+      databaseId,
+      migration.sql
+    );
+
+    appliedVersions.add(migration.version);
     applied.push(migration.version);
   }
 
-  // Idempotent upgrade migrations
-  await applyMigration018(env,databaseId);
-  await applyMigration019(env,databaseId);
-  await applyMigration020(env, databaseId);
-  await applyMigration021(env, databaseId);
-  await applyMigration022(env, databaseId);
-  await applyMigration023(env, databaseId);
-  await applyMigration024(env, databaseId);
-  await applyMigration025(env, databaseId);
-  
-await runCloudflareD1Batch(env,databaseId,
-  [
-    `
-  INSERT OR IGNORE INTO schema_migrations
-  (version, applied_at)
-  VALUES
-  (
-    '021_award_candidates',
-    datetime('now')
-  )
-`
-  ]
-);
-  
-  
-  await runCloudflareD1Batch(
-  env,
-  databaseId,
-  [
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '018_planned_agenda_speeches',
-        datetime('now')
-      )
-    `,
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '019_member_recognition_suffix',
-        datetime('now')
-      )
-    `
-  ]
-);
-  await runCloudflareD1Batch(
-  env,
-  databaseId,
-  [
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '020_table_topics_participants',
-        datetime('now')
-      )
-    `
-  ]
-);
+  const upgradeMigrations = [
+    {
+      version: "018_planned_agenda_speeches",
+      apply: applyMigration018
+    },
+    {
+      version: "019_member_recognition_suffix",
+      apply: applyMigration019
+    },
+    {
+      version: "020_table_topics_participants",
+      apply: applyMigration020
+    },
+    {
+      version: "021_award_candidates",
+      apply: applyMigration021
+    },
+    {
+      version: "022_meeting_role_assignment_planning",
+      apply: applyMigration022
+    },
+    {
+      version: "023_voting_sessions",
+      apply: applyMigration023
+    },
+    {
+      version: "024_meeting_locking",
+      apply: applyMigration024
+    },
+    {
+      version: "025_guest_foundation",
+      apply: applyMigration025
+    }
+  ];
 
-  await runCloudflareD1Batch(
-  env,
-  databaseId,
-  [
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '022_meeting_role_assignment_planning',
-        datetime('now')
-      )
-    `
-  ]
-);
-  await runCloudflareD1Batch(
-  env,
-  databaseId,
-  [
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '023_voting_sessions',
-        datetime('now')
-      )
-    `
-  ]
-);
-  await runCloudflareD1Batch(
-  env,
-  databaseId,
-  [
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '024_meeting_locking',
-        datetime('now')
-      )
-    `
-  ]
-);
-await runCloudflareD1Batch(
-  env,
-  databaseId,
-  [
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '025_guest_foundation',
-        datetime('now')
-      )
-    `
-  ]
-);
-  
-  
+  for (const migration of upgradeMigrations) {
+    if (appliedVersions.has(migration.version)) {
+      continue;
+    }
 
-  applied.push("018_planned_agenda_speeches");
-  applied.push("019_member_recognition_suffix");
-  applied.push("020_table_topics_participants");
-  applied.push("021_award_candidates");
-  applied.push("022_meeting_role_assignment_planning");
-  applied.push("023_voting_sessions");
-  applied.push("024_meeting_locking");
-  applied.push("025_guest_foundation");
+    await migration.apply(env, databaseId);
+    await markMigrationApplied(env, databaseId, migration.version);
+
+    appliedVersions.add(migration.version);
+    applied.push(migration.version);
+  }
+
   return applied;
 }
 
