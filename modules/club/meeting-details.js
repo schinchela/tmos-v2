@@ -204,10 +204,9 @@ function renderAgendaRolesPanel(roles) {
 
       <form class="enterprise-form" id="addAgendaRoleForm">
         <div class="form-grid">
-
           <label>
             Role
-            <select id="agendaRoleSelect" required>
+            <select id="agendaRoleSelect" required ${meetingLocked() ? "disabled" : ""}>
               <option value="">Select role</option>
               ${configRoles.map((role) => `
                 <option
@@ -222,7 +221,7 @@ function renderAgendaRolesPanel(roles) {
 
           <label>
             Assign From
-            <select id="agendaRoleSourceType">
+            <select id="agendaRoleSourceType" ${meetingLocked() ? "disabled" : ""}>
               <option value="">Leave Vacant</option>
               <option value="MEMBER">Member</option>
               <option value="GUEST">Guest</option>
@@ -232,34 +231,34 @@ function renderAgendaRolesPanel(roles) {
 
           <label id="agendaMemberWrap" style="display:none;">
             Member
-            <select id="agendaMemberSelect">
+            <select id="agendaMemberSelect" ${meetingLocked() ? "disabled" : ""}>
               ${renderPersonOptions(availableMembers)}
             </select>
           </label>
 
           <label id="agendaGuestWrap" style="display:none;">
             Guest
-            <select id="agendaGuestSelect">
+            <select id="agendaGuestSelect" ${meetingLocked() ? "disabled" : ""}>
               ${renderPersonOptions(availableGuests)}
             </select>
           </label>
 
           <label id="agendaVisitorWrap" style="display:none;">
             Visitor Name
-            <input id="agendaVisitorName" placeholder="Visitor name" />
+            <input id="agendaVisitorName" placeholder="Visitor name" ${meetingLocked() ? "disabled" : ""} />
           </label>
 
           <label>
             Notes
-            <input id="agendaRoleNotes" placeholder="Optional notes" />
+            <input id="agendaRoleNotes" placeholder="Optional notes" ${meetingLocked() ? "disabled" : ""} />
           </label>
-
         </div>
 
         <button
           class="primary-btn"
           id="addAgendaRoleBtn"
           type="submit"
+          ${meetingLocked() ? "disabled" : ""}
         >
           Add Planned Role
         </button>
@@ -269,53 +268,50 @@ function renderAgendaRolesPanel(roles) {
 
       <table class="table">
         <thead>
-          <thead>
-  <tr>
-    <th>Role</th>
-    <th>Planned Person</th>
-    <th>Status</th>
-    <th>Actions</th>
-  </tr>
+          <tr>
+            <th>Role</th>
+            <th>Planned Person</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
         </thead>
 
         <tbody>
           ${
             roles.length
               ? roles.map((role) => `
-               <tr>
-  <td>
-    <strong>${escapeHtml(role.role_name)}</strong>
-  </td>
-  <td>
-    ${escapeHtml(role.planned_display_name || "Vacant")}
-  </td>
-  <td>
-    ${escapeHtml(role.assignment_status || "PLANNED")}
-  </td>
-  <td>
-    <button
-      class="ghost-btn small-btn"
-      type="button"
-      data-edit-agenda-role="${escapeHtml(role.id)}"
-      data-role-name="${escapeHtml(role.role_name || "")}"
-      data-status="${escapeHtml(role.assignment_status || "PLANNED")}"
-      data-person-name="${escapeHtml(role.planned_display_name || "")}"
-      data-notes="${escapeHtml(role.notes || "")}"
-      ${meetingLocked() ? "disabled" : ""}
-    >
-      Edit
-    </button>
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(role.role_name)}</strong>
+                  </td>
+                  <td>
+                    ${escapeHtml(role.planned_display_name || "Vacant")}
+                  </td>
+                  <td>
+                    ${escapeHtml(role.assignment_status || "PLANNED")}
+                  </td>
+                  <td>
+                    <button
+                      class="ghost-btn small-btn"
+                      type="button"
+                      data-edit-agenda-role="${escapeHtml(role.id)}"
+                      data-status="${escapeHtml(role.assignment_status || "PLANNED")}"
+                      data-notes="${escapeHtml(role.notes || "")}"
+                      ${meetingLocked() ? "disabled" : ""}
+                    >
+                      Edit
+                    </button>
 
-    <button
-      class="ghost-btn small-btn danger"
-      type="button"
-      data-delete-agenda-role="${escapeHtml(role.id)}"
-      ${meetingLocked() ? "disabled" : ""}
-    >
-      Delete
-    </button>
-  </td>
-</tr>
+                    <button
+                      class="ghost-btn small-btn danger"
+                      type="button"
+                      data-delete-agenda-role="${escapeHtml(role.id)}"
+                      ${meetingLocked() ? "disabled" : ""}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
               `).join("")
               : `
                 <tr>
@@ -330,7 +326,6 @@ function renderAgendaRolesPanel(roles) {
     </section>
   `;
 }
-
 function renderParticipantsPanel(participants) {
   const existingMemberIds = new Set(
     participants
@@ -1512,24 +1507,9 @@ function bindAgendaRoleEvents() {
       button.disabled = false;
     }
   });
-
-  document.querySelectorAll("[data-edit-agenda-role]").forEach((button) => {
+document.querySelectorAll("[data-edit-agenda-role]").forEach((button) => {
   button.addEventListener("click", async () => {
     const roleId = button.dataset.editAgendaRole;
-
-    const roleName = prompt(
-      "Role name",
-      button.dataset.roleName || ""
-    );
-
-    if (roleName === null) return;
-
-    const plannedDisplayName = prompt(
-      "Planned person name",
-      button.dataset.personName || ""
-    );
-
-    if (plannedDisplayName === null) return;
 
     const assignmentStatus = prompt(
       "Status",
@@ -1551,9 +1531,7 @@ function bindAgendaRoleEvents() {
         {
           method: "PUT",
           body: {
-            roleName,
             assignmentStatus,
-            plannedDisplayName,
             notes
           }
         }
@@ -1590,6 +1568,7 @@ document.querySelectorAll("[data-delete-agenda-role]").forEach((button) => {
     }
   });
 });
+  
 }
 
 function bindAgendaSpeechEvents() {
