@@ -18,7 +18,40 @@
       --line: rgba(255,255,255,0.12);
       --radius: 24px;
     }
+@media print {
 
+  body {
+    background: white;
+    color: black;
+    padding: 0;
+  }
+
+  .hero,
+  .module-panel {
+    background: white;
+    color: black;
+    border: 1px solid #ddd;
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+
+  button {
+    display: none;
+  }
+
+  a {
+    color: black;
+    text-decoration: none;
+  }
+
+  .eyebrow {
+    color: #666;
+  }
+
+  th {
+    color: #333;
+  }
+}
     * {
       box-sizing: border-box;
     }
@@ -110,16 +143,31 @@
 <div class="container">
 
   <section class="hero">
-    <p class="eyebrow">
-      TMOS PUBLIC AGENDA
-    </p>
+  <p class="eyebrow">
+    TMOS PUBLIC AGENDA
+  </p>
 
-    <h1 id="meetingTitle">
-      Loading...
-    </h1>
+  <h1 id="meetingTitle">
+    Loading...
+  </h1>
 
-    <p id="meetingMeta"></p>
-  </section>
+  <p id="meetingMeta"></p>
+
+  <div style="margin-top:20px;">
+    <button
+      onclick="window.print()"
+      style="
+        padding:12px 20px;
+        border:none;
+        border-radius:12px;
+        cursor:pointer;
+        font-weight:600;
+      "
+    >
+      Print / Save PDF
+    </button>
+  </div>
+</section>
 
   <div
     id="agendaContent"
