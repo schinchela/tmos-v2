@@ -1,3 +1,3 @@
-/agenda/* /agenda/:splat 200
-/vote/* /vote/:splat 200
+/agenda/* /agenda/index.html 200
+/vote/* /vote/index.html 200
 /* /index.html 200
