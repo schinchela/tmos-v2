@@ -784,29 +784,7 @@ async function applyMigration025(env, databaseId) {
   );
 }
 
-async function applyMigration027(env, databaseId) {
-  await runCloudflareD1Batch(
-    env,
-    databaseId,
-    [
-      `
-        CREATE TABLE IF NOT EXISTS meeting_public_agendas (
-          meeting_id TEXT PRIMARY KEY,
-          public_token TEXT NOT NULL,
-          is_published INTEGER NOT NULL DEFAULT 0,
-          published_at TEXT,
-          last_published_at TEXT,
-          created_at TEXT,
-          updated_at TEXT
-        )
-      `,
-      `
-        CREATE INDEX IF NOT EXISTS idx_public_agenda_token
-        ON meeting_public_agendas(public_token)
-      `
-    ]
-  );
-}
+
 
 async function applyMigration026(env, databaseId) {
   await ensureTable(
@@ -834,6 +812,54 @@ async function applyMigration026(env, databaseId) {
     "idx_meeting_minutes_meeting",
     "meeting_minutes",
     "meeting_id"
+  );
+}
+
+async function applyMigration027(env, databaseId) {
+  await runCloudflareD1Batch(
+    env,
+    databaseId,
+    [
+      `
+        CREATE TABLE IF NOT EXISTS meeting_public_agendas (
+          meeting_id TEXT PRIMARY KEY,
+          public_token TEXT NOT NULL,
+          is_published INTEGER NOT NULL DEFAULT 0,
+          published_at TEXT,
+          last_published_at TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_public_agenda_token
+        ON meeting_public_agendas(public_token)
+      `
+    ]
+  );
+}
+
+async function applyMigration028(env, databaseId) {
+  await runCloudflareD1Batch(
+    env,
+    databaseId,
+    [
+      `
+        CREATE TABLE IF NOT EXISTS meeting_public_minutes (
+          meeting_id TEXT PRIMARY KEY,
+          public_token TEXT NOT NULL,
+          is_published INTEGER NOT NULL DEFAULT 0,
+          published_at TEXT,
+          last_published_at TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_public_minutes_token
+        ON meeting_public_minutes(public_token)
+      `
+    ]
   );
 }
 
@@ -4756,6 +4782,126 @@ async function getPublicAgenda(request, env, token) {
   }, 404);
 }
 
+async function publishMeetingMinutes(
+  request,
+  env,
+  meetingId
+) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const timestamp = now();
+
+  const meetingResult =
+    await executeClubQuery(
+      env,
+      auth.user.club_id,
+      `
+        SELECT meeting_date
+        FROM meetings
+        WHERE id = ${sqlValue(meetingId)}
+        LIMIT 1
+      `
+    );
+
+  const meeting =
+    meetingResult?.[0]?.results?.[0] ||
+    meetingResult?.results?.[0];
+
+  if (!meeting) {
+    return json({
+      success:false,
+      error:"Meeting not found"
+    },404);
+  }
+
+  const token =
+    meetingDateToken(
+      meeting.meeting_date
+    );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_public_minutes (
+        meeting_id,
+        public_token,
+        is_published,
+        published_at,
+        last_published_at,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(meetingId)},
+        ${sqlValue(token)},
+        1,
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+      ON CONFLICT(meeting_id)
+      DO UPDATE SET
+        public_token = excluded.public_token,
+        is_published = 1,
+        last_published_at = excluded.last_published_at,
+        updated_at = excluded.updated_at
+    `
+  );
+
+  return json({
+    success:true,
+    data:{
+      token,
+      url:
+        `${FRONTEND_URL}/minutes/?token=${token}`
+    }
+  });
+}
+
+async function getMeetingMinutesPublication(
+  request,
+  env,
+  meetingId
+) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result =
+    await executeClubQuery(
+      env,
+      auth.user.club_id,
+      `
+        SELECT *
+        FROM meeting_public_minutes
+        WHERE meeting_id =
+          ${sqlValue(meetingId)}
+        LIMIT 1
+      `
+    );
+
+  const row =
+    result?.[0]?.results?.[0] ||
+    result?.results?.[0] ||
+    null;
+
+  return json({
+    success:true,
+    data: row
+      ? {
+          published:true,
+          token:row.public_token,
+          url:
+            `${FRONTEND_URL}/minutes/?token=${row.public_token}`
+        }
+      : {
+          published:false
+        }
+  });
+}
+
 async function getAppliedMigrationVersions(env, databaseId) {
   try {
     const result = await runCloudflareD1Query(
@@ -4862,6 +5008,10 @@ async function runClubMigrations(env, databaseId) {
   apply: applyMigration027
 }
   ];
+  {
+  version: "028_public_minutes",
+  apply: applyMigration028
+}
 
   for (const migration of upgradeMigrations) {
     if (appliedVersions.has(migration.version)) {
