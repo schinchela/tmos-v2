@@ -4027,37 +4027,83 @@ async function closeMeeting(request, env, meetingId) {
     `
   );
 
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM guest_attendance
+      WHERE meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
   for (const participant of participants) {
-    if (participant.participant_type !== "MEMBER" || !participant.participant_id) {
-      continue;
+    if (participant.participant_type === "MEMBER" && participant.participant_id) {
+      await executeClubStatement(
+        env,
+        auth.user.club_id,
+        `
+          INSERT INTO member_attendance (
+            id,
+            member_id,
+            meeting_id,
+            meeting_date,
+            attendance_status,
+            role_taken,
+            notes,
+            created_at
+          )
+          VALUES (
+            ${sqlValue(id("attendance"))},
+            ${sqlValue(participant.participant_id)},
+            ${sqlValue(meetingId)},
+            ${sqlValue(meeting.meeting_date)},
+            ${sqlValue(participant.attendance_status || "PRESENT")},
+            NULL,
+            ${sqlValue(participant.notes)},
+            ${sqlValue(timestamp)}
+          )
+        `
+      );
     }
 
-    await executeClubStatement(
-      env,
-      auth.user.club_id,
-      `
-        INSERT INTO member_attendance (
-          id,
-          member_id,
-          meeting_id,
-          meeting_date,
-          attendance_status,
-          role_taken,
-          notes,
-          created_at
-        )
-        VALUES (
-          ${sqlValue(id("attendance"))},
-          ${sqlValue(participant.participant_id)},
-          ${sqlValue(meetingId)},
-          ${sqlValue(meeting.meeting_date)},
-          ${sqlValue(participant.attendance_status || "PRESENT")},
-          NULL,
-          ${sqlValue(participant.notes)},
-          ${sqlValue(timestamp)}
-        )
-      `
-    );
+    if (participant.participant_type === "GUEST" && participant.participant_id) {
+      await executeClubStatement(
+        env,
+        auth.user.club_id,
+        `
+          INSERT INTO guest_attendance (
+            id,
+            guest_id,
+            meeting_id,
+            meeting_date,
+            attendance_status,
+            notes,
+            created_at
+          )
+          VALUES (
+            ${sqlValue(id("guest_attendance"))},
+            ${sqlValue(participant.participant_id)},
+            ${sqlValue(meetingId)},
+            ${sqlValue(meeting.meeting_date)},
+            ${sqlValue(participant.attendance_status || "PRESENT")},
+            ${sqlValue(participant.notes)},
+            ${sqlValue(timestamp)}
+          )
+        `
+      );
+
+      await executeClubStatement(
+        env,
+        auth.user.club_id,
+        `
+          UPDATE guests
+          SET
+            last_seen_at = ${sqlValue(meeting.meeting_date)},
+            updated_at = ${sqlValue(timestamp)}
+          WHERE id = ${sqlValue(participant.participant_id)}
+        `
+      );
+    }
   }
 
   const speechesResult = await executeClubQuery(
@@ -4134,13 +4180,13 @@ async function closeMeeting(request, env, meetingId) {
     auth.user.club_id,
     `
       UPDATE meetings
-SET
-  status = 'COMPLETED',
-  locked_at = ${sqlValue(timestamp)},
-  locked_by = ${sqlValue(auth.user.email || auth.user.id || "system")},
-  lock_reason = ${sqlValue("Meeting completed and locked")},
-  updated_at = ${sqlValue(timestamp)}
-WHERE id = ${sqlValue(meetingId)}
+      SET
+        status = 'COMPLETED',
+        locked_at = ${sqlValue(timestamp)},
+        locked_by = ${sqlValue(auth.user.email || auth.user.id || "system")},
+        lock_reason = ${sqlValue("Meeting completed and locked")},
+        updated_at = ${sqlValue(timestamp)}
+      WHERE id = ${sqlValue(meetingId)}
     `
   );
 
