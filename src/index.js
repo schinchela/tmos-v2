@@ -3743,21 +3743,28 @@ async function getVotingResults(request, env, meetingId) {
 async function finalizeVotingAwards(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
-const editable = await assertMeetingEditable(
-  env,
-  auth.user.club_id,
-  meetingId
-);
 
-if (!editable.ok) return editable.response;
+  const editable = await assertMeetingEditable(
+    env,
+    auth.user.club_id,
+    meetingId
+  );
+
+  if (!editable.ok) return editable.response;
+
   const body = await request.json();
-  const winners = Array.isArray(body.winners) ? body.winners : [];
+  const winners = Array.isArray(body.winners)
+    ? body.winners
+    : [];
 
   if (!winners.length) {
-    return json({
-      success: false,
-      error: "No winners selected."
-    }, 400);
+    return json(
+      {
+        success: false,
+        error: "No winners selected."
+      },
+      400
+    );
   }
 
   const meetingResult = await executeClubQuery(
@@ -3775,7 +3782,8 @@ if (!editable.ok) return editable.response;
     meetingResult?.[0]?.results?.[0] ||
     meetingResult?.results?.[0];
 
-  const awardDate = meeting?.meeting_date || now();
+  const awardDate =
+    meeting?.meeting_date || now();
 
   await executeClubStatement(
     env,
@@ -3791,6 +3799,15 @@ if (!editable.ok) return editable.response;
     auth.user.club_id,
     `
       DELETE FROM member_awards
+      WHERE source = ${sqlValue(`MEETING:${meetingId}`)}
+    `
+  );
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM guest_awards
       WHERE source = ${sqlValue(`MEETING:${meetingId}`)}
     `
   );
@@ -3814,7 +3831,9 @@ if (!editable.ok) return editable.response;
       candidateResult?.[0]?.results?.[0] ||
       candidateResult?.results?.[0];
 
-    if (!candidate) continue;
+    if (!candidate) {
+      continue;
+    }
 
     await executeClubStatement(
       env,
@@ -3841,7 +3860,10 @@ if (!editable.ok) return editable.response;
       `
     );
 
-    if (candidate.participant_type === "MEMBER" && candidate.participant_id) {
+    if (
+      candidate.participant_type === "MEMBER" &&
+      candidate.participant_id
+    ) {
       await executeClubStatement(
         env,
         auth.user.club_id,
@@ -3869,6 +3891,40 @@ if (!editable.ok) return editable.response;
         `
       );
     }
+
+    if (
+      candidate.participant_type === "GUEST" &&
+      candidate.participant_id
+    ) {
+      await executeClubStatement(
+        env,
+        auth.user.club_id,
+        `
+          INSERT INTO guest_awards (
+            id,
+            guest_id,
+            meeting_id,
+            award_key,
+            award_name,
+            award_date,
+            source,
+            notes,
+            created_at
+          )
+          VALUES (
+            ${sqlValue(id("gaward"))},
+            ${sqlValue(candidate.participant_id)},
+            ${sqlValue(meetingId)},
+            ${sqlValue(candidate.award_key)},
+            ${sqlValue(candidate.award_name)},
+            ${sqlValue(awardDate)},
+            ${sqlValue(`MEETING:${meetingId}`)},
+            ${sqlValue(meeting?.meeting_title || "")},
+            ${sqlValue(timestamp)}
+          )
+        `
+      );
+    }
   }
 
   return json({
@@ -3878,7 +3934,6 @@ if (!editable.ok) return editable.response;
     }
   });
 }
-
 async function getMeetingAwards(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
