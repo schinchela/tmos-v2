@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
+  <title>TMOS Public Agenda</title>
+
+  <link
+    rel="stylesheet"
+    href="/assets/css/styles.css"
+  >
+</head>
+
+<body>
+  <main class="container">
+    <section class="hero">
+      <p class="eyebrow">TMOS Public Agenda</p>
+
+      <h1 id="meetingTitle">
+        Loading...
+      </h1>
+
+      <p id="meetingMeta"></p>
+    </section>
+
+    <div id="agendaContent">
+      Loading agenda...
+    </div>
+  </main>
+
+  <script>
+    const API_URL =
+      "https://api.tmos.rowepal.com";
+
+    const params =
+      new URLSearchParams(window.location.search);
+
+    const token =
+      params.get("token");
+
+    async function loadAgenda() {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/public-agenda/${token}`
+        );
+
+        const result =
+          await response.json();
+
+        if (!result.success) {
+          throw new Error(
+            result.error || "Agenda not found"
+          );
+        }
+
+        renderAgenda(result.data);
+      } catch (error) {
+        document.getElementById(
+          "agendaContent"
+        ).innerHTML = `
+          <div class="module-panel">
+            ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    function renderAgenda(data) {
+      const meeting =
+        data.meeting || {};
+
+      document.getElementById(
+        "meetingTitle"
+      ).textContent =
+        meeting.meeting_title ||
+        "Meeting Agenda";
+
+      document.getElementById(
+        "meetingMeta"
+      ).textContent =
+        `${meeting.meeting_date || ""} • ${meeting.meeting_theme || ""}`;
+
+      document.getElementById(
+        "agendaContent"
+      ).innerHTML = `
+        ${renderMeetingInfo(meeting)}
+        ${renderRoles(data.roles || [])}
+        ${renderSpeeches(data.speeches || [])}
+        ${renderTableTopics(data.tableTopics || [])}
+      `;
+    }
+
+    function renderMeetingInfo(meeting) {
+      return `
+        <section class="module-panel">
+          <div class="panel-header">
+            <h3>Meeting Information</h3>
+          </div>
+
+          <table class="table">
+            <tbody>
+              <tr>
+                <td>Theme</td>
+                <td>${meeting.meeting_theme || "-"}</td>
+              </tr>
+
+              <tr>
+                <td>Date</td>
+                <td>${meeting.meeting_date || "-"}</td>
+              </tr>
+
+              <tr>
+                <td>Venue</td>
+                <td>${meeting.venue || "-"}</td>
+              </tr>
+
+              <tr>
+                <td>Online Link</td>
+                <td>${meeting.online_link || "-"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      `;
+    }
+
+    function renderRoles(roles) {
+      return `
+        <section class="module-panel">
+          <div class="panel-header">
+            <h3>Agenda Roles</h3>
+          </div>
+
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>Assigned To</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${roles.map(role => `
+                <tr>
+                  <td>${role.role_name || "-"}</td>
+                  <td>${role.planned_display_name || "-"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>
+      `;
+    }
+
+    function renderSpeeches(speeches) {
+      return `
+        <section class="module-panel">
+          <div class="panel-header">
+            <h3>Prepared Speeches</h3>
+          </div>
+
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Speaker</th>
+                <th>Speech</th>
+                <th>Evaluator</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${speeches.map(speech => `
+                <tr>
+                  <td>${speech.planned_speaker_name || "-"}</td>
+                  <td>${speech.speech_title || "-"}</td>
+                  <td>${speech.planned_evaluator_name || "-"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>
+      `;
+    }
+
+    function renderTableTopics(participants) {
+      return `
+        <section class="module-panel">
+          <div class="panel-header">
+            <h3>Table Topics Participants</h3>
+          </div>
+
+          <table class="table">
+            <tbody>
+              ${participants.map(person => `
+                <tr>
+                  <td>${person.participant_name || "-"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>
+      `;
+    }
+
+    loadAgenda();
+  </script>
+</body>
+</html>
