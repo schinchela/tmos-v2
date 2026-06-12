@@ -770,6 +770,40 @@ async function applyMigration023(env, databaseId) {
   );
 }
 
+async function applyMigration024(env, databaseId) {
+  await ensureColumn(
+    env,
+    databaseId,
+    "meetings",
+    "locked_at",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meetings",
+    "locked_by",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meetings",
+    "lock_reason",
+    "TEXT"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_meetings_locked_at",
+    "meetings",
+    "locked_at"
+  );
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -2208,6 +2242,15 @@ async function listMeetingParticipants(request, env, meetingId) {
 
 async function addMeetingParticipant(request, env, meetingId) {
   const auth = await requireAuth(request, env);
+
+  const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
+
+if (!editable.ok) return editable.response;
+  
   if (!auth.ok) return auth.response;
 
   if (!auth.user.club_id) {
@@ -2466,7 +2509,13 @@ async function listAgendaRoles(request, env, meetingId) {
 async function createAgendaRole(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const body = await request.json();
 
   const roleId = id("role");
@@ -2544,7 +2593,13 @@ if (existingRoleRows.length) {
 async function updateAgendaRole(request, env, meetingId, roleId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const body = await request.json();
 
   await executeClubStatement(
@@ -2579,7 +2634,13 @@ async function updateAgendaRole(request, env, meetingId, roleId) {
 async function deleteMeeting(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   await executeClubStatement(
     env,
     auth.user.club_id,
@@ -2654,7 +2715,13 @@ async function listAgendaSpeeches(request, env, meetingId) {
 async function createAgendaSpeech(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const body = await request.json();
 
   const speechId = id("speech");
@@ -2734,7 +2801,13 @@ async function createAgendaSpeech(request, env, meetingId) {
 async function updateAgendaSpeech(request, env, meetingId, speechId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const body = await request.json();
 
   await executeClubStatement(
@@ -2824,7 +2897,13 @@ async function listTableTopics(request, env, meetingId) {
 async function addTableTopicParticipant(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const body = await request.json();
 
   const existing = await executeClubQuery(
@@ -2889,7 +2968,13 @@ async function addTableTopicParticipant(request, env, meetingId) {
 async function deleteTableTopicParticipant(request, env, meetingId, topicId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   await executeClubStatement(
     env,
     auth.user.club_id,
@@ -2937,7 +3022,13 @@ async function listAwardCandidates(request, env, meetingId) {
 async function generateAwardCandidates(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const timestamp = now();
 
   const awardsResult = await executeClubQuery(
@@ -3122,7 +3213,13 @@ async function generateAwardCandidates(request, env, meetingId) {
 async function updateAwardCandidate(request, env, meetingId, candidateId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const body = await request.json();
 
   await executeClubStatement(
@@ -3146,7 +3243,13 @@ async function updateAwardCandidate(request, env, meetingId, candidateId) {
 async function openVoting(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const existingResult = await executeClubQuery(
     env,
     auth.user.club_id,
@@ -3464,7 +3567,13 @@ async function submitPublicVote(request, env, publicToken) {
 async function closeVoting(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   await executeClubStatement(
     env,
     auth.user.club_id,
@@ -3530,7 +3639,13 @@ async function getVotingResults(request, env, meetingId) {
 async function finalizeVotingAwards(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
+const editable = await assertMeetingEditable(
+  env,
+  auth.user.club_id,
+  meetingId
+);
 
+if (!editable.ok) return editable.response;
   const body = await request.json();
   const winners = Array.isArray(body.winners) ? body.winners : [];
 
@@ -3689,6 +3804,67 @@ async function getMeetingAwards(request, env, meetingId) {
       awards
     }
   });
+}
+
+async function getMeetingById(env, clubId, meetingId) {
+  const result = await executeClubQuery(
+    env,
+    clubId,
+    `
+      SELECT *
+      FROM meetings
+      WHERE id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  return (
+    result?.[0]?.results?.[0] ||
+    result?.results?.[0] ||
+    null
+  );
+}
+
+function meetingIsLocked(meeting) {
+  return Boolean(
+    meeting &&
+    (
+      meeting.locked_at ||
+      String(meeting.status || "").toUpperCase() === "COMPLETED"
+    )
+  );
+}
+
+async function assertMeetingEditable(env, clubId, meetingId) {
+  const meeting = await getMeetingById(env, clubId, meetingId);
+
+  if (!meeting) {
+    return {
+      ok: false,
+      response: json(
+        { success: false, error: "Meeting not found" },
+        404
+      )
+    };
+  }
+
+  if (meetingIsLocked(meeting)) {
+    return {
+      ok: false,
+      response: json(
+        {
+          success: false,
+          error: "This meeting is completed and locked. Reopen it before making changes."
+        },
+        423
+      )
+    };
+  }
+
+  return {
+    ok: true,
+    meeting
+  };
 }
 
 async function closeMeeting(request, env, meetingId) {
@@ -3854,10 +4030,13 @@ async function closeMeeting(request, env, meetingId) {
     auth.user.club_id,
     `
       UPDATE meetings
-      SET
-        status = 'COMPLETED',
-        updated_at = ${sqlValue(timestamp)}
-      WHERE id = ${sqlValue(meetingId)}
+SET
+  status = 'COMPLETED',
+  locked_at = ${sqlValue(timestamp)},
+  locked_by = ${sqlValue(auth.user.email || auth.user.id || "system")},
+  lock_reason = ${sqlValue("Meeting completed and locked")},
+  updated_at = ${sqlValue(timestamp)}
+WHERE id = ${sqlValue(meetingId)}
     `
   );
 
@@ -3881,10 +4060,13 @@ async function reopenMeeting(request, env, meetingId) {
     auth.user.club_id,
     `
       UPDATE meetings
-      SET
-        status = 'IN_PROGRESS',
-        updated_at = ${sqlValue(timestamp)}
-      WHERE id = ${sqlValue(meetingId)}
+SET
+  status = 'IN_PROGRESS',
+  locked_at = NULL,
+  locked_by = NULL,
+  lock_reason = NULL,
+  updated_at = ${sqlValue(timestamp)}
+WHERE id = ${sqlValue(meetingId)}
     `
   );
 
@@ -3913,6 +4095,7 @@ async function runClubMigrations(env, databaseId) {
   await applyMigration021(env, databaseId);
   await applyMigration022(env, databaseId);
   await applyMigration023(env, databaseId);
+  await applyMigration024(env,databaseId);
   
 await runCloudflareD1Batch(env,databaseId,
   [
@@ -4000,13 +4183,28 @@ await runCloudflareD1Batch(env,databaseId,
   ]
 );
   
-
+await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '024_meeting_locking',
+        datetime('now')
+      )
+    `
+  ]
+);
   applied.push("018_planned_agenda_speeches");
   applied.push("019_member_recognition_suffix");
   applied.push("020_table_topics_participants");
   applied.push("021_award_candidates");
   applied.push("022_meeting_role_assignment_planning");
   applied.push("023_voting_sessions");
+  applied.push("024_meeting_locking");
   return applied;
 }
 
