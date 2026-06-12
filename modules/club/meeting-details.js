@@ -1488,6 +1488,144 @@ function bindAgendaRoleEvents() {
     }
   });
 }
+
+function bindAgendaSpeechEvents() {
+  const form = document.getElementById("addAgendaSpeechForm");
+  const message = document.getElementById("agendaSpeechMessage");
+  const button = document.getElementById("addAgendaSpeechBtn");
+
+  const speakerType = document.getElementById("speechSpeakerType");
+  const memberSpeakerWrap = document.getElementById("speechMemberSpeakerWrap");
+  const guestSpeakerWrap = document.getElementById("speechGuestSpeakerWrap");
+  const visitorSpeakerWrap = document.getElementById("speechVisitorSpeakerWrap");
+
+  const evaluatorType = document.getElementById("speechEvaluatorType");
+  const memberEvaluatorWrap = document.getElementById("speechMemberEvaluatorWrap");
+  const guestEvaluatorWrap = document.getElementById("speechGuestEvaluatorWrap");
+  const visitorEvaluatorWrap = document.getElementById("speechVisitorEvaluatorWrap");
+
+  function syncSpeakerFields() {
+    const type = speakerType?.value || "MEMBER";
+
+    if (memberSpeakerWrap) memberSpeakerWrap.style.display = type === "MEMBER" ? "" : "none";
+    if (guestSpeakerWrap) guestSpeakerWrap.style.display = type === "GUEST" ? "" : "none";
+    if (visitorSpeakerWrap) visitorSpeakerWrap.style.display = type === "VISITOR" ? "" : "none";
+  }
+
+  function syncEvaluatorFields() {
+    const type = evaluatorType?.value || "";
+
+    if (memberEvaluatorWrap) memberEvaluatorWrap.style.display = type === "MEMBER" ? "" : "none";
+    if (guestEvaluatorWrap) guestEvaluatorWrap.style.display = type === "GUEST" ? "" : "none";
+    if (visitorEvaluatorWrap) visitorEvaluatorWrap.style.display = type === "VISITOR" ? "" : "none";
+  }
+
+  speakerType?.addEventListener("change", syncSpeakerFields);
+  evaluatorType?.addEventListener("change", syncEvaluatorFields);
+
+  syncSpeakerFields();
+  syncEvaluatorFields();
+
+  if (!form) return;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (meetingLocked()) return;
+
+    message.textContent = "";
+    button.disabled = true;
+
+    try {
+      const selectedSpeakerType = speakerType.value;
+      let plannedSpeakerId = "";
+      let plannedSpeakerName = "";
+      let plannedSpeakerEmail = "";
+
+      if (selectedSpeakerType === "MEMBER") {
+        const option = document.getElementById("speechMemberSpeakerSelect")?.selectedOptions?.[0];
+        plannedSpeakerId = option?.value || "";
+        plannedSpeakerName = option?.dataset?.name || option?.textContent?.trim() || "";
+        plannedSpeakerEmail = option?.dataset?.email || "";
+      }
+
+      if (selectedSpeakerType === "GUEST") {
+        const option = document.getElementById("speechGuestSpeakerSelect")?.selectedOptions?.[0];
+        plannedSpeakerId = option?.value || "";
+        plannedSpeakerName = option?.dataset?.name || option?.textContent?.trim() || "";
+        plannedSpeakerEmail = option?.dataset?.email || "";
+      }
+
+      if (selectedSpeakerType === "VISITOR") {
+        plannedSpeakerName = document.getElementById("speechVisitorSpeakerName")?.value?.trim() || "";
+      }
+
+      const selectedEvaluatorType = evaluatorType.value;
+      let plannedEvaluatorId = "";
+      let plannedEvaluatorName = "";
+      let plannedEvaluatorEmail = "";
+
+      if (selectedEvaluatorType === "MEMBER") {
+        const option = document.getElementById("speechMemberEvaluatorSelect")?.selectedOptions?.[0];
+        plannedEvaluatorId = option?.value || "";
+        plannedEvaluatorName = option?.dataset?.name || option?.textContent?.trim() || "";
+        plannedEvaluatorEmail = option?.dataset?.email || "";
+      }
+
+      if (selectedEvaluatorType === "GUEST") {
+        const option = document.getElementById("speechGuestEvaluatorSelect")?.selectedOptions?.[0];
+        plannedEvaluatorId = option?.value || "";
+        plannedEvaluatorName = option?.dataset?.name || option?.textContent?.trim() || "";
+        plannedEvaluatorEmail = option?.dataset?.email || "";
+      }
+
+      if (selectedEvaluatorType === "VISITOR") {
+        plannedEvaluatorName = document.getElementById("speechVisitorEvaluatorName")?.value?.trim() || "";
+      }
+
+      const body = {
+        plannedSpeakerType: selectedSpeakerType,
+        plannedSpeakerId,
+        plannedSpeakerName,
+        plannedSpeakerEmail,
+
+        plannedEvaluatorType: selectedEvaluatorType || null,
+        plannedEvaluatorId,
+        plannedEvaluatorName,
+        plannedEvaluatorEmail,
+
+        speechTitle: document.getElementById("speechTitle")?.value?.trim() || "",
+        speechType: document.getElementById("speechType")?.value || "PATHWAY",
+        pathwayName: document.getElementById("speechPathway")?.value?.trim() || "",
+        levelNumber: Number(document.getElementById("speechLevel")?.value || 0),
+        projectName: document.getElementById("speechProject")?.value?.trim() || "",
+        plannedDurationMin: Number(document.getElementById("speechDuration")?.value || 0),
+        notes: document.getElementById("speechNotes")?.value?.trim() || ""
+      };
+
+      if (!body.plannedSpeakerName) {
+        throw new Error("Speaker is required.");
+      }
+
+      if (!body.speechTitle) {
+        throw new Error("Speech title is required.");
+      }
+
+      await apiRequest(`/api/meetings/${currentMeetingId}/speeches`, {
+        method: "POST",
+        body
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message || "Failed to add speech.";
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 function bindTableTopicEvents() {
   const tableTopicForm = document.getElementById("addTableTopicForm");
 
