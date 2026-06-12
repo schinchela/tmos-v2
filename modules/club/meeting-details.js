@@ -1626,6 +1626,133 @@ function bindAgendaSpeechEvents() {
   });
 }
 
+function bindAwardEvents() {
+  document.getElementById("generateAwardCandidatesBtn")?.addEventListener("click", async () => {
+    const message = document.getElementById("awardCandidatesMessage");
+
+    try {
+      message.textContent = "Generating candidates...";
+
+      await apiRequest(`/api/meetings/${currentMeetingId}/award-candidates/generate`, {
+        method: "POST"
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message || "Failed to generate award candidates.";
+    }
+  });
+
+  document.getElementById("openVotingBtn")?.addEventListener("click", async () => {
+    const message = document.getElementById("awardCandidatesMessage");
+
+    try {
+      message.textContent = "Opening voting...";
+
+      await apiRequest(`/api/meetings/${currentMeetingId}/voting/open`, {
+        method: "POST"
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message || "Failed to open voting.";
+    }
+  });
+
+  document.getElementById("closeVotingBtn")?.addEventListener("click", async () => {
+    const message = document.getElementById("awardCandidatesMessage");
+
+    try {
+      message.textContent = "Closing voting...";
+
+      await apiRequest(`/api/meetings/${currentMeetingId}/voting/close`, {
+        method: "POST"
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message || "Failed to close voting.";
+    }
+  });
+
+  document.getElementById("copyVotingLinkBtn")?.addEventListener("click", async () => {
+    const input = document.getElementById("votingLinkInput");
+    if (!input?.value) return;
+
+    await navigator.clipboard.writeText(input.value);
+  });
+
+  document.querySelectorAll("[data-toggle-award-candidate]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const candidateId = button.dataset.toggleAwardCandidate;
+      const currentlyExcluded = Number(button.dataset.currentExcluded || 0) === 1;
+
+      try {
+        await apiRequest(
+          `/api/meetings/${currentMeetingId}/award-candidates/${candidateId}/toggle`,
+          {
+            method: "POST",
+            body: {
+              isExcluded: currentlyExcluded ? 0 : 1
+            }
+          }
+        );
+
+        window.__keepMeetingScroll = true;
+        await loadMeetingDetails();
+      } catch (error) {
+        const message = document.getElementById("awardCandidatesMessage");
+        if (message) {
+          message.textContent = error.message || "Failed to update candidate.";
+        }
+      }
+    });
+  });
+
+  document.getElementById("finalizeAwardsBtn")?.addEventListener("click", async () => {
+    const selectedAwards = [];
+
+    document.querySelectorAll("[data-award-winner]").forEach((select) => {
+      const option = select.selectedOptions?.[0];
+
+      if (!option?.value) return;
+
+      selectedAwards.push({
+        awardKey: option.dataset.awardKey,
+        awardName: option.dataset.awardName,
+        candidateId: option.value,
+        winnerName: option.dataset.participantName
+      });
+    });
+
+    if (!selectedAwards.length) {
+      const message = document.getElementById("awardCandidatesMessage");
+      if (message) message.textContent = "Select at least one winner.";
+      return;
+    }
+
+    try {
+      await apiRequest(`/api/meetings/${currentMeetingId}/awards/finalize`, {
+        method: "POST",
+        body: {
+          awards: selectedAwards
+        }
+      });
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      const message = document.getElementById("awardCandidatesMessage");
+      if (message) {
+        message.textContent = error.message || "Failed to finalize awards.";
+      }
+    }
+  });
+}
+
 function bindTableTopicEvents() {
   const tableTopicForm = document.getElementById("addTableTopicForm");
 
