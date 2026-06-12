@@ -27,7 +27,16 @@ function formatDate(value) {
       year: "numeric"
     });
 }
+function formatMeetingDateToken(meetingDate) {
+  const [year, month, day] =
+    String(meetingDate || "").split("-");
 
+  if (!year || !month || !day) {
+    return "";
+  }
+
+  return `${day}${month}${year}`;
+}
 function getNextRegularMeetingDates(dayValue, count = 4) {
   if (dayValue === "" || dayValue === null || dayValue === undefined) return [];
 
@@ -98,6 +107,106 @@ function renderMeetingRows(meetings) {
       <td>${escapeHtml(formatDate(meeting.updated_at))}</td>
     </tr>
   `).join("");
+}
+function renderMeetingArchive(meetings) {
+  const archived = meetings.filter(
+    (meeting) =>
+      String(meeting.status || "")
+        .toUpperCase() === "COMPLETED"
+  );
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Meeting Archive</h3>
+        <span class="badge">
+          ${archived.length}
+        </span>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Meeting</th>
+            <th>Theme</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${
+            archived.length
+              ? archived.map((meeting) => {
+                  const token =
+                    formatMeetingDateToken(
+                      meeting.meeting_date
+                    );
+
+                  return `
+                    <tr>
+                      <td>
+                        ${escapeHtml(
+                          formatDate(
+                            meeting.meeting_date
+                          )
+                        )}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(
+                          meeting.meeting_title || "-"
+                        )}
+                      </td>
+
+                      <td>
+                        ${escapeHtml(
+                          meeting.meeting_theme || "-"
+                        )}
+                      </td>
+
+                      <td>
+                        <button
+                          class="ghost-btn archive-open-meeting"
+                          data-meeting-id="${escapeHtml(meeting.id)}"
+                          type="button"
+                        >
+                          View Meeting
+                        </button>
+
+                        <a
+                          class="ghost-btn"
+                          href="/agenda/?token=${escapeHtml(token)}"
+                          target="_blank"
+                          rel="noopener"
+                        >
+                          Agenda
+                        </a>
+
+                        <a
+                          class="ghost-btn"
+                          href="/minutes/?token=${escapeHtml(token)}"
+                          target="_blank"
+                          rel="noopener"
+                        >
+                          Minutes
+                        </a>
+                      </td>
+                    </tr>
+                  `;
+                }).join("")
+              : `
+                <tr>
+                  <td colspan="4">
+                    No completed meetings yet.
+                  </td>
+                </tr>
+              `
+          }
+        </tbody>
+      </table>
+    </section>
+  `;
 }
 
 function renderStats() {
@@ -249,6 +358,9 @@ export function renderClubMeetings() {
         </tbody>
       </table>
     </section>
+  </section>
+${renderMeetingArchive(meetingsCache)}
+`;
   `;
 }
 
@@ -366,6 +478,24 @@ export async function initClubMeetings() {
   bindMeetingNavigation();
   updateMeetingCreationMode();
 
+document.addEventListener("click", (event) => {
+  const button =
+    event.target.closest(
+      ".archive-open-meeting"
+    );
+
+  if (!button) return;
+
+  window.TMOS_SELECTED_MEETING_ID =
+    button.dataset.meetingId;
+
+  import("../../assets/js/router.js")
+    .then(({ navigate }) => {
+      navigate(
+        "club-meeting-details"
+      );
+    });
+});
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
