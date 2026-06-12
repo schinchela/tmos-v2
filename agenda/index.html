@@ -1,24 +1,139 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta
     name="viewport"
-    content="width=device-width,initial-scale=1"
+    content="width=device-width, initial-scale=1"
   >
 
   <title>TMOS Public Agenda</title>
 
-  <link
-    rel="stylesheet"
-    href="/assets/css/styles.css"
-  >
+  <style>
+    :root {
+      --bg: #070b16;
+      --panel: rgba(255,255,255,0.08);
+      --panel-strong: rgba(255,255,255,0.12);
+      --text: #eef4ff;
+      --muted: #9fb0cc;
+      --line: rgba(255,255,255,0.12);
+      --accent: #7c5cff;
+      --accent-2: #00d4ff;
+      --radius: 24px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left,#1a1d46 0%,#070b16 55%),
+        #070b16;
+      color: var(--text);
+      font-family:
+        Inter,
+        Segoe UI,
+        sans-serif;
+      padding: 32px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero,
+    .module-panel {
+      background: var(--panel);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: .2em;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    h1 {
+      margin: 12px 0;
+      font-size: 3rem;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .badge {
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--panel-strong);
+      color: var(--text);
+      font-size: .8rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: .85rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 50px;
+      color: var(--muted);
+    }
+
+    .error {
+      color: #ff8a8a;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 16px;
+      }
+
+      h1 {
+        font-size: 2rem;
+      }
+
+      table {
+        font-size: .9rem;
+      }
+    }
+  </style>
 </head>
 
 <body>
-  <main class="container">
+  <div class="container">
+
     <section class="hero">
-      <p class="eyebrow">TMOS Public Agenda</p>
+      <p class="eyebrow">
+        TMOS PUBLIC AGENDA
+      </p>
 
       <h1 id="meetingTitle">
         Loading...
@@ -27,20 +142,23 @@
       <p id="meetingMeta"></p>
     </section>
 
-    <div id="agendaContent">
+    <div
+      id="agendaContent"
+      class="loading"
+    >
       Loading agenda...
     </div>
-  </main>
+
+  </div>
 
   <script>
     const API_URL =
       "https://api.tmos.rowepal.com";
 
-    const params =
-      new URLSearchParams(window.location.search);
-
     const token =
-      params.get("token");
+      window.location.pathname
+        .replace(/^\/agenda\//, "")
+        .replace(/\/$/, "");
 
     async function loadAgenda() {
       try {
@@ -62,7 +180,7 @@
         document.getElementById(
           "agendaContent"
         ).innerHTML = `
-          <div class="module-panel">
+          <div class="module-panel error">
             ${error.message}
           </div>
         `;
@@ -82,16 +200,20 @@
       document.getElementById(
         "meetingMeta"
       ).textContent =
-        `${meeting.meeting_date || ""} • ${meeting.meeting_theme || ""}`;
+        [
+          meeting.meeting_date,
+          meeting.meeting_theme
+        ]
+          .filter(Boolean)
+          .join(" • ");
 
       document.getElementById(
         "agendaContent"
-      ).innerHTML = `
-        ${renderMeetingInfo(meeting)}
-        ${renderRoles(data.roles || [])}
-        ${renderSpeeches(data.speeches || [])}
-        ${renderTableTopics(data.tableTopics || [])}
-      `;
+      ).innerHTML =
+        renderMeetingInfo(meeting) +
+        renderRoles(data.roles || []) +
+        renderSpeeches(data.speeches || []) +
+        renderTableTopics(data.tableTopics || []);
     }
 
     function renderMeetingInfo(meeting) {
@@ -101,7 +223,7 @@
             <h3>Meeting Information</h3>
           </div>
 
-          <table class="table">
+          <table>
             <tbody>
               <tr>
                 <td>Theme</td>
@@ -135,7 +257,7 @@
             <h3>Agenda Roles</h3>
           </div>
 
-          <table class="table">
+          <table>
             <thead>
               <tr>
                 <th>Role</th>
@@ -163,11 +285,11 @@
             <h3>Prepared Speeches</h3>
           </div>
 
-          <table class="table">
+          <table>
             <thead>
               <tr>
                 <th>Speaker</th>
-                <th>Speech</th>
+                <th>Speech Title</th>
                 <th>Evaluator</th>
               </tr>
             </thead>
@@ -193,7 +315,7 @@
             <h3>Table Topics Participants</h3>
           </div>
 
-          <table class="table">
+          <table>
             <tbody>
               ${participants.map(person => `
                 <tr>
