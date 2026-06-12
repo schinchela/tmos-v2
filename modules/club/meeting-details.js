@@ -1752,7 +1752,60 @@ function bindAwardEvents() {
     }
   });
 }
+function bindCloseMeetingEvents() {
+  const closeBtn = document.getElementById("closeMeetingBtn");
+  const reopenBtn = document.getElementById("reopenMeetingBtn");
 
+  closeBtn?.addEventListener("click", async () => {
+    const confirmed = confirm(
+      "Close and lock this meeting?\n\nThis will finalize attendance, speeches, awards and meeting history."
+    );
+
+    if (!confirmed) return;
+
+    closeBtn.disabled = true;
+
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/close`,
+        {
+          method: "POST"
+        }
+      );
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      alert(error.message || "Failed to close meeting.");
+      closeBtn.disabled = false;
+    }
+  });
+
+  reopenBtn?.addEventListener("click", async () => {
+    const confirmed = confirm(
+      "Reopen this meeting?\n\nThe meeting will become editable again."
+    );
+
+    if (!confirmed) return;
+
+    reopenBtn.disabled = true;
+
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/reopen`,
+        {
+          method: "POST"
+        }
+      );
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      alert(error.message || "Failed to reopen meeting.");
+      reopenBtn.disabled = false;
+    }
+  });
+}
 function bindTableTopicEvents() {
   const tableTopicForm = document.getElementById("addTableTopicForm");
 
