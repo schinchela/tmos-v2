@@ -5030,9 +5030,7 @@ async function handleRequest(request, env) {
   if (closeMeetingMatch && request.method === "POST") { return closeMeeting(request,env,closeMeetingMatch[1]);}
   const reopenMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/reopen$/);
   if (reopenMeetingMatch && request.method === "POST") {return reopenMeeting(request,env,reopenMeetingMatch[1]);}
-  if (url.pathname === "/api/admin/apply-migration-024" &&  request.method === "POST") {  return applyMigration024ForMyClub(request, env);}
-  if (url.pathname === "/api/admin/apply-migration-025" &&  request.method === "POST") {  return applyMigration025ForMyClub(request, env);}
-
+  
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
