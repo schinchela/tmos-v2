@@ -2697,13 +2697,7 @@ if (existingRoleRows.length) {
 async function updateAgendaRole(request, env, meetingId, roleId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
-const editable = await assertMeetingEditable(
-  env,
-  auth.user.club_id,
-  meetingId
-);
 
-if (!editable.ok) return editable.response;
   const body = await request.json();
 
   await executeClubStatement(
@@ -2712,26 +2706,16 @@ if (!editable.ok) return editable.response;
     `
       UPDATE meeting_role_assignments
       SET
-        role_code = ${sqlValue(body.roleCode)},
-        role_name = ${sqlValue(body.roleName)},
         assignment_status = ${sqlValue(body.assignmentStatus || "PLANNED")},
-        sequence_order = ${Number(body.sequenceOrder || 0)},
         notes = ${sqlValue(body.notes)},
-        planned_participant_type = ${sqlValue(body.plannedParticipantType)},
-        planned_participant_id = ${sqlValue(body.plannedParticipantId)},
-        planned_display_name = ${sqlValue(body.plannedDisplayName)},
-        planned_email = ${sqlValue(body.plannedEmail)},
         updated_at = ${sqlValue(now())}
       WHERE id = ${sqlValue(roleId)}
-      AND meeting_id = ${sqlValue(meetingId)}
+        AND meeting_id = ${sqlValue(meetingId)}
     `
   );
 
   return json({
-    success: true,
-    data: {
-      id: roleId
-    }
+    success: true
   });
 }
 
@@ -4422,7 +4406,9 @@ async function deleteAgendaRole(request, env, meetingId, roleId) {
     `
   );
 
-  return json({ success: true });
+  return json({
+    success: true
+  });
 }
 
 
@@ -5370,10 +5356,9 @@ async function handleRequest(request, env) {
   if (pathParts.length === 5 &&  pathParts[0] === "api" &&  pathParts[1] === "meetings" &&  pathParts[3] === "participants" &&  request.method === "DELETE") {  return deleteMeetingParticipant(request,env,pathParts[2],pathParts[4]);}
   const deleteAgendaRoleMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
   if (deleteAgendaRoleMatch && request.method === "DELETE") { return deleteAgendaRole(request,env,deleteAgendaRoleMatch[1],deleteAgendaRoleMatch[2]);}
-  const agendaRoleMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
-  if (agendaRoleMatch && request.method === "PUT") { return updateAgendaRole(request,env,agendaRoleMatch[1],agendaRoleMatch[2]);}
-  if (agendaRoleMatch &&  request.method === "DELETE") { return deleteAgendaRole(request,env,agendaRoleMatch[1],agendaRoleMatch[2]);}
-
+  const agendaRoleItemMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
+  if (agendaRoleItemMatch && request.method === "PUT") {  return updateAgendaRole(request,env,agendaRoleItemMatch[1],agendaRoleItemMatch[2]);}
+  if (agendaRoleItemMatch && request.method === "DELETE") { return deleteAgendaRole(request,env,agendaRoleItemMatch[1],agendaRoleItemMatch[2]);}
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
