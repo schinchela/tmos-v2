@@ -908,6 +908,35 @@ async function applyMigration025(env, databaseId) {
   );
 }
 
+async function applyMigration026(env, databaseId) {
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS meeting_minutes (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
+
+        summary TEXT,
+        key_decisions TEXT,
+        announcements TEXT,
+        general_notes TEXT,
+
+        created_at TEXT,
+        updated_at TEXT
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_meeting_minutes_meeting",
+    "meeting_minutes",
+    "meeting_id"
+  );
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -4470,7 +4499,119 @@ async function deleteMeetingSpeech(request, env, meetingId, speechId) {
   });
 }
 
+async function getMeetingMinutes(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_minutes
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  const minutes =
+    result?.[0]?.results?.[0] ||
+    result?.results?.[0] ||
+    null;
+
+  return json({
+    success: true,
+    data: minutes || {
+      summary: "",
+      key_decisions: "",
+      announcements: "",
+      general_notes: ""
+    }
+  });
+}
+
+async function saveMeetingMinutes(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+  const timestamp = now();
+
+  const existingResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT id
+      FROM meeting_minutes
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  const existing =
+    existingResult?.[0]?.results?.[0] ||
+    existingResult?.results?.[0];
+
+  if (existing) {
+    await executeClubStatement(
+      env,
+      auth.user.club_id,
+      `
+        UPDATE meeting_minutes
+        SET
+          summary = ${sqlValue(body.summary)},
+          key_decisions = ${sqlValue(body.keyDecisions)},
+          announcements = ${sqlValue(body.announcements)},
+          general_notes = ${sqlValue(body.generalNotes)},
+          updated_at = ${sqlValue(timestamp)}
+        WHERE id = ${sqlValue(existing.id)}
+      `
+    );
+
+    return json({
+      success: true,
+      data: {
+        id: existing.id
+      }
+    });
+  }
+
+  const minutesId = id("minutes");
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_minutes (
+        id,
+        meeting_id,
+        summary,
+        key_decisions,
+        announcements,
+        general_notes,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(minutesId)},
+        ${sqlValue(meetingId)},
+        ${sqlValue(body.summary)},
+        ${sqlValue(body.keyDecisions)},
+        ${sqlValue(body.announcements)},
+        ${sqlValue(body.generalNotes)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      id: minutesId
+    }
+  });
+}
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -5422,6 +5563,10 @@ async function handleRequest(request, env) {
   const meetingSpeechItemMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-speeches\/([^/]+)$/);
   if (meetingSpeechItemMatch && request.method === "PUT") { return updateMeetingSpeech(request,env,meetingSpeechItemMatch[1],meetingSpeechItemMatch[2]);}
   if (meetingSpeechItemMatch && request.method === "DELETE") { return deleteMeetingSpeech(request,env,meetingSpeechItemMatch[1],meetingSpeechItemMatch[2]);}
+  const meetingMinutesMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/minutes$/);
+  if (meetingMinutesMatch && request.method === "GET") { return getMeetingMinutes(request,env,meetingMinutesMatch[1]);}
+  if (meetingMinutesMatch && request.method === "PUT") { return saveMeetingMinutes(request,env,meetingMinutesMatch[1]);}
+
 
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
