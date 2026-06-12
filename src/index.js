@@ -4377,6 +4377,55 @@ async function deleteMeetingParticipant(
   });
 }
 
+async function updateAgendaRole(
+  request,
+  env,
+  meetingId,
+  roleId
+) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meeting_role_assignments
+      SET
+        role_name = ${sqlValue(body.roleName)},
+        planned_display_name = ${sqlValue(body.plannedDisplayName)},
+        assignment_status = ${sqlValue(body.assignmentStatus)},
+        notes = ${sqlValue(body.notes)},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(roleId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
+async function deleteAgendaRole(request, env, meetingId, roleId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_role_assignments
+      WHERE id = ${sqlValue(roleId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({ success: true });
+}
+
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -5319,8 +5368,11 @@ async function handleRequest(request, env) {
   if (reopenMeetingMatch && request.method === "POST") {return reopenMeeting(request,env,reopenMeetingMatch[1]);}
   if (pathParts.length === 5 &&  pathParts[0] === "api" &&  pathParts[1] === "meetings" &&  pathParts[3] === "participants" &&  request.method === "PUT") {  return updateMeetingParticipant(request,env,pathParts[2],pathParts[4]);}  
   if (pathParts.length === 5 &&  pathParts[0] === "api" &&  pathParts[1] === "meetings" &&  pathParts[3] === "participants" &&  request.method === "DELETE") {  return deleteMeetingParticipant(request,env,pathParts[2],pathParts[4]);}
-
-
+  const deleteAgendaRoleMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
+  if (deleteAgendaRoleMatch && request.method === "DELETE") { return deleteAgendaRole(request,env,deleteAgendaRoleMatch[1],deleteAgendaRoleMatch[2]);}
+  const agendaRoleMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
+  if (agendaRoleMatch && request.method === "PUT") { return updateAgendaRole(request,env,agendaRoleMatch[1],agendaRoleMatch[2]);}
+  if (agendaRoleMatch &&  request.method === "DELETE") { return deleteAgendaRole(request,env,agendaRoleMatch[1],agendaRoleMatch[2]);}
 
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
