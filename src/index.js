@@ -770,39 +770,7 @@ async function applyMigration023(env, databaseId) {
   );
 }
 
-async function applyMigration024(env, databaseId) {
-  await ensureColumn(
-    env,
-    databaseId,
-    "meetings",
-    "locked_at",
-    "TEXT"
-  );
 
-  await ensureColumn(
-    env,
-    databaseId,
-    "meetings",
-    "locked_by",
-    "TEXT"
-  );
-
-  await ensureColumn(
-    env,
-    databaseId,
-    "meetings",
-    "lock_reason",
-    "TEXT"
-  );
-
-  await ensureIndex(
-    env,
-    databaseId,
-    "idx_meetings_locked_at",
-    "meetings",
-    "locked_at"
-  );
-}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -4079,6 +4047,43 @@ WHERE id = ${sqlValue(meetingId)}
   });
 }
 
+async function applyMigration024ForMyClub(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned" }, 400);
+  }
+
+  const dbInfo = await getClubDatabaseInfo(env, auth.user.club_id);
+
+  if (!dbInfo) {
+    return json({ success: false, error: "Club database not found" }, 404);
+  }
+
+  await applyMigration024(env, dbInfo.database_identifier);
+
+  await runCloudflareD1Batch(
+    env,
+    dbInfo.database_identifier,
+    [
+      `
+        INSERT OR IGNORE INTO schema_migrations
+        (version, applied_at)
+        VALUES ('024_meeting_locking', datetime('now'))
+      `
+    ]
+  );
+
+  return json({
+    success: true,
+    data: {
+      migration: "024_meeting_locking",
+      database: dbInfo.database_name
+    }
+  });
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -4095,7 +4100,6 @@ async function runClubMigrations(env, databaseId) {
   await applyMigration021(env, databaseId);
   await applyMigration022(env, databaseId);
   await applyMigration023(env, databaseId);
-  await applyMigration024(env,databaseId);
   
 await runCloudflareD1Batch(env,databaseId,
   [
@@ -4183,28 +4187,13 @@ await runCloudflareD1Batch(env,databaseId,
   ]
 );
   
-await runCloudflareD1Batch(
-  env,
-  databaseId,
-  [
-    `
-      INSERT OR IGNORE INTO schema_migrations
-      (version, applied_at)
-      VALUES
-      (
-        '024_meeting_locking',
-        datetime('now')
-      )
-    `
-  ]
-);
+
   applied.push("018_planned_agenda_speeches");
   applied.push("019_member_recognition_suffix");
   applied.push("020_table_topics_participants");
   applied.push("021_award_candidates");
   applied.push("022_meeting_role_assignment_planning");
   applied.push("023_voting_sessions");
-  applied.push("024_meeting_locking");
   return applied;
 }
 
@@ -5000,7 +4989,12 @@ async function handleRequest(request, env) {
   if (closeMeetingMatch && request.method === "POST") { return closeMeeting(request,env,closeMeetingMatch[1]);}
   const reopenMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/reopen$/);
   if (reopenMeetingMatch && request.method === "POST") {return reopenMeeting(request,env,reopenMeetingMatch[1]);}
-
+  if (
+  url.pathname === "/api/admin/apply-migration-024" &&
+  request.method === "POST"
+) {
+  return applyMigration024ForMyClub(request, env);
+}
 
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
