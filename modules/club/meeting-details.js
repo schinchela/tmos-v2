@@ -1432,70 +1432,7 @@ function bindTableTopicEvents() {
   });
 }
 
-function bindTableTopicEvents() {
-  const tableTopicForm = document.getElementById("addTableTopicForm");
 
-  tableTopicForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const message = document.getElementById("tableTopicMessage");
-    const button = document.getElementById("addTableTopicBtn");
-    const select = document.getElementById("tableTopicParticipantSelect");
-    const selected = select?.selectedOptions?.[0];
-
-    if (!selected?.value) {
-      message.textContent = "Please select a participant.";
-      return;
-    }
-
-    message.textContent = "Adding Table Topics participant...";
-    button.disabled = true;
-
-    try {
-      await apiRequest(`/api/meetings/${currentMeetingId}/table-topics`, {
-        method: "POST",
-        body: {
-          participantRefId: selected.value,
-          participantType: selected.dataset.type,
-          participantId: selected.dataset.participantId,
-          participantName: selected.dataset.name,
-          participantEmail: selected.dataset.email
-        }
-      });
-
-      window.__keepMeetingScroll = true;
-      await loadMeetingDetails();
-    } catch (error) {
-      message.textContent = error.message;
-      button.disabled = false;
-    }
-  });
-
-  document.querySelectorAll("[data-delete-table-topic]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const topicId = button.dataset.deleteTableTopic;
-
-      if (!confirm("Remove this Table Topics participant?")) return;
-
-      button.disabled = true;
-      button.textContent = "Removing...";
-
-      try {
-        await apiRequest(
-          `/api/meetings/${currentMeetingId}/table-topics/${topicId}`,
-          { method: "DELETE" }
-        );
-
-        window.__keepMeetingScroll = true;
-        await loadMeetingDetails();
-      } catch (error) {
-        alert(error.message);
-        button.disabled = false;
-        button.textContent = "Remove";
-      }
-    });
-  });
-}
 
 function bindCloseMeetingEvents() {
   document.getElementById("closeMeetingBtn")?.addEventListener("click", async () => {
