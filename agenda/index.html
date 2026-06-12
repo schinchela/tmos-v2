@@ -129,10 +129,11 @@
 const API_URL =
   "https://api.tmos.rowepal.com";
 
+const match =
+  window.location.pathname.match(/^\/agenda\/([^/]+)$/);
+
 const token =
-  window.location.pathname
-    .replace(/^\/agenda\/?/, "")
-    .replace(/\/$/, "");
+  match ? match[1] : "";
 
 if (!token) {
   document.getElementById(
