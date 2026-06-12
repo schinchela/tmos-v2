@@ -15,7 +15,14 @@ let finalizedAwards = {
   finalized: false,
   awards: []
 };
-
+function meetingLocked() {
+  return Boolean(
+    meetingData?.meeting?.locked_at ||
+    String(
+      meetingData?.meeting?.status || ""
+    ).toUpperCase() === "COMPLETED"
+  );
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -357,7 +364,7 @@ const availableGuests = attendanceSources.guests;
           </label>
         </div>
 
-        <button class="primary-btn" id="addAgendaRoleBtn" type="submit">
+        <button  class="primary-btn"  id="addAgendaRoleBtn"  type="submit"  ${meetingLocked() ? "disabled" : ""}>
           Add Planned Role
         </button>
 
@@ -594,12 +601,7 @@ function renderTableTopicsPanel(tableTopics, participants) {
           </label>
         </div>
 
-        <button
-          class="primary-btn"
-          id="addTableTopicBtn"
-          type="submit"
-          ${availableParticipants.length ? "" : "disabled"}
-        >
+        <button class="primary-btn" id="addTableTopicBtn" type="submit" ${meetingLocked()  ? "disabled": (availableParticipants.length ? "" : "disabled")}>
           Add Table Topics Participant
         </button>
 
@@ -1030,16 +1032,30 @@ function renderMeetingCommandCenter(data) {
           Back to Meetings
         </button>
 
-        <button class="primary-btn" id="editMeetingBtn" type="button">
+        <button  class="primary-btn"  id="editMeetingBtn"  type="button"  ${meetingLocked() ? "disabled" : ""}>
           Edit Meeting
         </button>
-        <button class="ghost-btn danger"  id="deleteMeetingBtn"  type="button">
+        <button class="ghost-btn danger"  id="deleteMeetingBtn"  type="button"  ${meetingLocked() ? "disabled" : ""}>
           Delete Meeting
         </button>
       </div>
     </section>
 
-    ${renderMeetingSummary(data)}
+    ${
+  meetingLocked()
+    ? `
+      <section class="module-panel">
+        <div class="enterprise-form">
+          <strong>🔒 Meeting Locked</strong><br>
+          This meeting has been completed and locked.
+          Reopen the meeting to make changes.
+        </div>
+      </section>
+    `
+    : ""
+}
+
+${renderMeetingSummary(data)}
 
     ${renderMeetingProfile(meeting)}
 
