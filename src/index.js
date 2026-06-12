@@ -784,6 +784,29 @@ async function applyMigration025(env, databaseId) {
   );
 }
 
+async function applyMigration027(env, databaseId) {
+  await runCloudflareD1Batch(
+    env,
+    databaseId,
+    [
+      `
+        CREATE TABLE IF NOT EXISTS meeting_public_agendas (
+          meeting_id TEXT PRIMARY KEY,
+          public_token TEXT NOT NULL,
+          is_published INTEGER NOT NULL DEFAULT 0,
+          published_at TEXT,
+          last_published_at TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_public_agenda_token
+        ON meeting_public_agendas(public_token)
+      `
+    ]
+  );
+}
 
 async function applyMigration026(env, databaseId) {
   await ensureTable(
@@ -4460,6 +4483,241 @@ async function saveMeetingMinutes(request, env, meetingId) {
   });
 }
 
+async function publishMeetingAgenda(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const token = generateSlug(24);
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      INSERT INTO meeting_public_agendas (
+        meeting_id,
+        public_token,
+        is_published,
+        published_at,
+        last_published_at,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(meetingId)},
+        ${sqlValue(token)},
+        1,
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+      ON CONFLICT(meeting_id)
+      DO UPDATE SET
+        public_token = excluded.public_token,
+        is_published = 1,
+        last_published_at = excluded.last_published_at,
+        updated_at = excluded.updated_at
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      token,
+      url: `${FRONTEND_URL}/agenda/?token=${token}`
+    }
+  });
+}
+
+async function getMeetingAgendaPublication(request, env, meetingId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM meeting_public_agendas
+      WHERE meeting_id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  const row =
+    result?.[0]?.results?.[0] ||
+    result?.results?.[0] ||
+    null;
+
+  return json({
+    success: true,
+    data: row
+      ? {
+          published: true,
+          token: row.public_token,
+          url: `${FRONTEND_URL}/agenda/?token=${row.public_token}`
+        }
+      : {
+          published: false
+        }
+  });
+}
+
+async function getPublicAgenda(request, env, token) {
+  const agendaResult = await env.DB.prepare(`
+    SELECT
+      c.id AS club_id,
+      c.name AS club_name,
+      c.slug AS club_slug,
+      cd.database_identifier
+    FROM club_databases cd
+    JOIN clubs c
+      ON c.id = cd.club_id
+    WHERE cd.database_identifier IS NOT NULL
+  `).all();
+
+  const clubs = agendaResult.results || [];
+
+  for (const club of clubs) {
+    try {
+      const publishedResult = await runCloudflareD1Query(
+        env,
+        club.database_identifier,
+        `
+          SELECT *
+          FROM meeting_public_agendas
+          WHERE public_token = ${sqlValue(token)}
+            AND is_published = 1
+          LIMIT 1
+        `
+      );
+
+      const published =
+        publishedResult?.[0]?.results?.[0] ||
+        publishedResult?.results?.[0] ||
+        null;
+
+      if (!published) continue;
+
+      const meetingId = published.meeting_id;
+
+      const meetingResult = await runCloudflareD1Query(
+        env,
+        club.database_identifier,
+        `
+          SELECT
+            id,
+            meeting_title,
+            meeting_type,
+            meeting_theme,
+            meeting_date,
+            start_time,
+            end_time,
+            venue,
+            online_link,
+            status
+          FROM meetings
+          WHERE id = ${sqlValue(meetingId)}
+          LIMIT 1
+        `
+      );
+
+      const meeting =
+        meetingResult?.[0]?.results?.[0] ||
+        meetingResult?.results?.[0] ||
+        null;
+
+      if (!meeting) continue;
+
+      const rolesResult = await runCloudflareD1Query(
+        env,
+        club.database_identifier,
+        `
+          SELECT
+            role_code,
+            role_name,
+            assignment_status,
+            sequence_order,
+            planned_display_name
+          FROM meeting_role_assignments
+          WHERE meeting_id = ${sqlValue(meetingId)}
+          ORDER BY sequence_order ASC, role_name ASC
+        `
+      );
+
+      const speechesResult = await runCloudflareD1Query(
+        env,
+        club.database_identifier,
+        `
+          SELECT
+            planned_speaker_name,
+            planned_evaluator_name,
+            speech_title,
+            speech_type,
+            pathway_name,
+            project_name,
+            level_number,
+            planned_duration_min,
+            speech_status
+          FROM meeting_speeches
+          WHERE meeting_id = ${sqlValue(meetingId)}
+          ORDER BY created_at ASC
+        `
+      );
+
+      const tableTopicsResult = await runCloudflareD1Query(
+        env,
+        club.database_identifier,
+        `
+          SELECT
+            participant_name,
+            participant_type
+          FROM meeting_table_topics
+          WHERE meeting_id = ${sqlValue(meetingId)}
+          ORDER BY participant_name ASC
+        `
+      );
+
+      return json({
+        success: true,
+        data: {
+          club: {
+            id: club.club_id,
+            name: club.club_name,
+            slug: club.club_slug
+          },
+          meeting,
+          publication: {
+            token: published.public_token,
+            publishedAt: published.published_at,
+            lastPublishedAt: published.last_published_at
+          },
+          roles:
+            rolesResult?.[0]?.results ||
+            rolesResult?.results ||
+            [],
+          speeches:
+            speechesResult?.[0]?.results ||
+            speechesResult?.results ||
+            [],
+          tableTopics:
+            tableTopicsResult?.[0]?.results ||
+            tableTopicsResult?.results ||
+            []
+        }
+      });
+    } catch (_) {
+      continue;
+    }
+  }
+
+  return json({
+    success: false,
+    error: "Public agenda not found"
+  }, 404);
+}
+
 async function getAppliedMigrationVersions(env, databaseId) {
   try {
     const result = await runCloudflareD1Query(
@@ -4487,6 +4745,8 @@ async function getAppliedMigrationVersions(env, databaseId) {
     return new Set();
   }
 }
+
+
 
 async function markMigrationApplied(env, databaseId, version) {
   await runCloudflareD1Batch(
@@ -4559,6 +4819,10 @@ async function runClubMigrations(env, databaseId) {
     version: "026_meeting_minutes",
     apply: applyMigration026
   }
+    {
+  version: "027_public_agendas",
+  apply: applyMigration027
+}
   ];
 
   for (const migration of upgradeMigrations) {
@@ -5282,7 +5546,7 @@ async function handleRequest(request, env,ctx) {
       schemaMigrations: CLUB_MIGRATIONS.map((m) => m.version)
     });
   }
-  if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
+  
   if (url.pathname === "/api/setup/password" && request.method === "POST") return setupPassword(request, env);
   if (url.pathname === "/api/auth/login" && request.method === "POST") return login(request, env);
   if (url.pathname === "/api/auth/logout" && request.method === "POST") return logout(request, env);
@@ -5382,10 +5646,14 @@ async function handleRequest(request, env,ctx) {
   const meetingMinutesMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/minutes$/);
   if (meetingMinutesMatch && request.method === "GET") { return getMeetingMinutes(request,env,meetingMinutesMatch[1]);}
   if (meetingMinutesMatch && request.method === "PUT") { return saveMeetingMinutes(request,env,meetingMinutesMatch[1]);}
-
+  const publishAgendaMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/publish-agenda$/);
+  if (publishAgendaMatch && request.method === "GET") { return getMeetingAgendaPublication(request,env,publishAgendaMatch[1]);}
+  if (publishAgendaMatch && request.method === "POST") { return publishMeetingAgenda(request,env,publishAgendaMatch[1]);}
+  const publicAgendaMatch = url.pathname.match(/^\/api\/public-agenda\/([^/]+)$/);
+  if (publicAgendaMatch && request.method === "GET") { return getPublicAgenda(request,env,publicAgendaMatch[1]);}
 
   
- 
+  if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "POST") return createClub(request, env);
   if (url.pathname === "/api/platform/provisioning" && request.method === "GET") return listProvisioningJobs(request, env);
