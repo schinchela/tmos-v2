@@ -24,7 +24,9 @@ let meetingMinutes = {
 let publicAgenda = {
   published: false
 };
-
+let publicMinutes = {
+  published: false
+};
 
 function meetingLocked() {
   return Boolean(
@@ -1278,6 +1280,91 @@ function renderPublicAgendaPanel() {
     </section>
   `;
 }
+
+async function loadPublicMinutesStatus() {
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/publish-minutes`
+    );
+
+    publicMinutes = response.data || {
+      published: false
+    };
+  } catch (_) {
+    publicMinutes = {
+      published: false
+    };
+  }
+}
+
+function renderPublicMinutesPanel() {
+  const url = publicMinutes?.url || "";
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Public Minutes</h3>
+        <span class="badge">
+          ${publicMinutes?.published ? "Published" : "Not Published"}
+        </span>
+      </div>
+
+      <div class="enterprise-form">
+        <p>
+          Publish printable meeting minutes that members can view without login.
+        </p>
+
+        <div class="top-actions">
+          <button
+            class="primary-btn"
+            id="publishMinutesBtn"
+            type="button"
+          >
+            ${publicMinutes?.published ? "Republish Minutes" : "Publish Minutes"}
+          </button>
+
+          ${
+            publicMinutes?.published
+              ? `
+                <button
+                  class="ghost-btn"
+                  id="copyPublicMinutesBtn"
+                  type="button"
+                  data-url="${escapeHtml(url)}"
+                >
+                  Copy Link
+                </button>
+
+                <a
+                  class="ghost-btn"
+                  href="${escapeHtml(url)}"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  View Minutes
+                </a>
+              `
+              : ""
+          }
+        </div>
+
+        ${
+          publicMinutes?.published
+            ? `
+              <input
+                value="${escapeHtml(url)}"
+                readonly
+              />
+            `
+            : ""
+        }
+
+        <p class="form-message" id="publicMinutesMessage"></p>
+      </div>
+    </section>
+  `;
+}
+
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -1336,6 +1423,8 @@ ${renderMeetingSummary(data)}
     ${renderMeetingMinutesPanel()}
 
     ${renderPublicAgendaPanel()}
+
+    ${renderPublicMinutesPanel()}
 
     ${renderCloseMeetingPanel(meeting)}
   `;
@@ -1435,6 +1524,7 @@ async function loadMeetingDetails() {
   await loadFinalizedAwards();
   await loadMeetingMinutes();
   await loadPublicAgendaStatus();
+  await loadPublicMinutesStatus();
   
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
@@ -1634,6 +1724,7 @@ function bindMeetingCommandCenterEvents() {
   bindAwardEvents();
   bindMeetingMinutes();
   bindPublicAgenda();
+  bindPublicMinutes();
   bindCloseMeetingEvents();
   
 }
@@ -2301,6 +2392,44 @@ document.getElementById("copyPublicAgendaBtn")?.addEventListener("click", async 
       "Public agenda link copied.";
   } catch (_) {
     document.getElementById("publicAgendaMessage").textContent =
+      "Could not copy link. Please copy it manually.";
+  }
+});
+}
+
+function bindPublicMinutes()
+{
+  document.getElementById("publishMinutesBtn")?.addEventListener("click", async () => {
+  const message = document.getElementById("publicMinutesMessage");
+
+  message.textContent = "Publishing minutes...";
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/publish-minutes`,
+      {
+        method: "POST"
+      }
+    );
+
+    message.textContent = "Minutes published.";
+    window.__keepMeetingScroll = true;
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+
+document.getElementById("copyPublicMinutesBtn")?.addEventListener("click", async (event) => {
+  const url = event.currentTarget.dataset.url;
+
+  try {
+    await navigator.clipboard.writeText(url);
+
+    document.getElementById("publicMinutesMessage").textContent =
+      "Public minutes link copied.";
+  } catch (_) {
+    document.getElementById("publicMinutesMessage").textContent =
       "Could not copy link. Please copy it manually.";
   }
 });
