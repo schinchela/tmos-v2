@@ -15,6 +15,14 @@ let finalizedAwards = {
   finalized: false,
   awards: []
 };
+let meetingMinutes = {
+  summary: "",
+  key_decisions: "",
+  announcements: "",
+  general_notes: ""
+};
+
+
 function meetingLocked() {
   return Boolean(
     meetingData?.meeting?.locked_at ||
@@ -1119,6 +1127,88 @@ function renderCloseMeetingPanel(meeting) {
     </section>
   `;
 }
+async function loadMeetingMinutes() {
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/minutes`
+    );
+
+    meetingMinutes = response.data || {
+      summary: "",
+      key_decisions: "",
+      announcements: "",
+      general_notes: ""
+    };
+  } catch (_) {
+    meetingMinutes = {
+      summary: "",
+      key_decisions: "",
+      announcements: "",
+      general_notes: ""
+    };
+  }
+}
+
+function renderMeetingMinutesPanel() {
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Meeting Minutes</h3>
+        <span class="badge">Minutes</span>
+      </div>
+
+      <form class="enterprise-form" id="meetingMinutesForm">
+        <label>
+          Summary
+          <textarea
+            id="minutesSummary"
+            rows="4"
+            ${meetingLocked() ? "disabled" : ""}
+          >${escapeHtml(meetingMinutes.summary || "")}</textarea>
+        </label>
+
+        <label>
+          Key Decisions
+          <textarea
+            id="minutesKeyDecisions"
+            rows="4"
+            ${meetingLocked() ? "disabled" : ""}
+          >${escapeHtml(meetingMinutes.key_decisions || "")}</textarea>
+        </label>
+
+        <label>
+          Announcements
+          <textarea
+            id="minutesAnnouncements"
+            rows="4"
+            ${meetingLocked() ? "disabled" : ""}
+          >${escapeHtml(meetingMinutes.announcements || "")}</textarea>
+        </label>
+
+        <label>
+          General Notes
+          <textarea
+            id="minutesGeneralNotes"
+            rows="4"
+            ${meetingLocked() ? "disabled" : ""}
+          >${escapeHtml(meetingMinutes.general_notes || "")}</textarea>
+        </label>
+
+        <button
+          class="primary-btn"
+          id="saveMeetingMinutesBtn"
+          type="submit"
+          ${meetingLocked() ? "disabled" : ""}
+        >
+          Save Minutes
+        </button>
+
+        <p class="form-message" id="meetingMinutesMessage"></p>
+      </form>
+    </section>
+  `;
+}
+
 
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
@@ -1174,6 +1264,8 @@ ${renderMeetingSummary(data)}
 
     
     ${renderAwardsPanel(awardCandidates, votingSession, votingResults)}
+
+    ${renderMeetingMinutesPanel()}
 
     ${renderCloseMeetingPanel(meeting)}
   `;
@@ -1271,6 +1363,7 @@ async function loadMeetingDetails() {
   await loadVotingSession();
   await loadVotingResults();
   await loadFinalizedAwards();
+  await loadMeetingMinutes();
   
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
@@ -1468,6 +1561,7 @@ function bindMeetingCommandCenterEvents() {
   bindAgendaSpeechEvents();
   bindTableTopicEvents();
   bindAwardEvents();
+  bindMeetingMinutes();
   bindCloseMeetingEvents();
   
 }
@@ -2113,6 +2207,37 @@ function bindCloseMeetingEvents() {
   });
 }
 
+function bindMeetingMinutes()
+{
+  document.getElementById("meetingMinutesForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const message = document.getElementById("meetingMinutesMessage");
+
+  message.textContent = "Saving minutes...";
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/minutes`,
+      {
+        method: "PUT",
+        body: {
+          summary: document.getElementById("minutesSummary").value,
+          keyDecisions: document.getElementById("minutesKeyDecisions").value,
+          announcements: document.getElementById("minutesAnnouncements").value,
+          generalNotes: document.getElementById("minutesGeneralNotes").value
+        }
+      }
+    );
+
+    message.textContent = "Minutes saved.";
+    window.__keepMeetingScroll = true;
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+}
 
 export async function initMeetingDetails() {
   const container = document.getElementById("meetingCommandCenter");
