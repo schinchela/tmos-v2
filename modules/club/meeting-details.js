@@ -1154,42 +1154,27 @@ function renderMeetingMinutesPanel() {
     <section class="module-panel">
       <div class="panel-header">
         <h3>Meeting Minutes</h3>
-        <span class="badge">Minutes</span>
+        <span class="badge">Auto Generated</span>
       </div>
 
       <form class="enterprise-form" id="meetingMinutesForm">
-        <label>
-          Summary
-          <textarea
-            id="minutesSummary"
-            rows="4"
-            ${meetingLocked() ? "disabled" : ""}
-          >${escapeHtml(meetingMinutes.summary || "")}</textarea>
-        </label>
+        <div class="module-panel">
+          <div class="enterprise-form">
+            <p>
+              TMOS will automatically generate the official meeting minutes from
+              attendance, agenda roles, speeches, table topics and awards.
+              Use the box below only for extra notes, decisions, announcements
+              or context that the club wants included in the final minutes.
+            </p>
+          </div>
+        </div>
 
         <label>
-          Key Decisions
-          <textarea
-            id="minutesKeyDecisions"
-            rows="4"
-            ${meetingLocked() ? "disabled" : ""}
-          >${escapeHtml(meetingMinutes.key_decisions || "")}</textarea>
-        </label>
-
-        <label>
-          Announcements
-          <textarea
-            id="minutesAnnouncements"
-            rows="4"
-            ${meetingLocked() ? "disabled" : ""}
-          >${escapeHtml(meetingMinutes.announcements || "")}</textarea>
-        </label>
-
-        <label>
-          General Notes
+          Additional Minutes Notes
           <textarea
             id="minutesGeneralNotes"
-            rows="4"
+            rows="6"
+            placeholder="Optional: decisions, announcements, special notes, meeting context..."
             ${meetingLocked() ? "disabled" : ""}
           >${escapeHtml(meetingMinutes.general_notes || "")}</textarea>
         </label>
@@ -1200,7 +1185,7 @@ function renderMeetingMinutesPanel() {
           type="submit"
           ${meetingLocked() ? "disabled" : ""}
         >
-          Save Minutes
+          Save Additional Notes
         </button>
 
         <p class="form-message" id="meetingMinutesMessage"></p>
@@ -2166,36 +2151,35 @@ function bindTableTopicEvents() {
 }
 
 
-function bindMeetingMinutes()
-{
+function bindMeetingMinutes() {
   document.getElementById("meetingMinutesForm")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
+    event.preventDefault();
 
-  const message = document.getElementById("meetingMinutesMessage");
+    const message = document.getElementById("meetingMinutesMessage");
 
-  message.textContent = "Saving minutes...";
+    message.textContent = "Saving additional minutes notes...";
 
-  try {
-    await apiRequest(
-      `/api/meetings/${currentMeetingId}/minutes`,
-      {
-        method: "PUT",
-        body: {
-          summary: document.getElementById("minutesSummary").value,
-          keyDecisions: document.getElementById("minutesKeyDecisions").value,
-          announcements: document.getElementById("minutesAnnouncements").value,
-          generalNotes: document.getElementById("minutesGeneralNotes").value
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/minutes`,
+        {
+          method: "PUT",
+          body: {
+            summary: "",
+            keyDecisions: "",
+            announcements: "",
+            generalNotes: document.getElementById("minutesGeneralNotes").value
+          }
         }
-      }
-    );
+      );
 
-    message.textContent = "Minutes saved.";
-    window.__keepMeetingScroll = true;
-    await loadMeetingDetails();
-  } catch (error) {
-    message.textContent = error.message;
-  }
-});
+      message.textContent = "Additional minutes notes saved.";
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  });
 }
 
 export async function initMeetingDetails() {
