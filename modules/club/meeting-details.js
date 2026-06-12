@@ -461,6 +461,7 @@ function renderParticipantsPanel(participants) {
   `;
 }
 
+
 function renderAgendaSpeechesPanel(speeches) {
   return `
     <section class="module-panel">
@@ -473,7 +474,7 @@ function renderAgendaSpeechesPanel(speeches) {
         <div class="form-grid">
           <label>
             Speaker Type
-            <select id="speechSpeakerType">
+            <select id="speechSpeakerType" ${meetingLocked() ? "disabled" : ""}>
               <option value="MEMBER">Member</option>
               <option value="GUEST">Guest</option>
               <option value="VISITOR">Manual Visitor</option>
@@ -482,31 +483,31 @@ function renderAgendaSpeechesPanel(speeches) {
 
           <label id="speechMemberSpeakerWrap">
             Speaker
-            <select id="speechMemberSpeakerSelect">
+            <select id="speechMemberSpeakerSelect" ${meetingLocked() ? "disabled" : ""}>
               ${renderPersonOptions(attendanceSources.members)}
             </select>
           </label>
 
           <label id="speechGuestSpeakerWrap" style="display:none;">
             Guest Speaker
-            <select id="speechGuestSpeakerSelect">
+            <select id="speechGuestSpeakerSelect" ${meetingLocked() ? "disabled" : ""}>
               ${renderPersonOptions(attendanceSources.guests)}
             </select>
           </label>
 
           <label id="speechVisitorSpeakerWrap" style="display:none;">
             Visitor Speaker
-            <input id="speechVisitorSpeakerName" placeholder="Speaker name" />
+            <input id="speechVisitorSpeakerName" placeholder="Speaker name" ${meetingLocked() ? "disabled" : ""} />
           </label>
 
           <label>
             Speech Title
-            <input id="speechTitle" placeholder="Speech title" required />
+            <input id="speechTitle" placeholder="Speech title" required ${meetingLocked() ? "disabled" : ""} />
           </label>
 
           <label>
             Speech Type
-            <select id="speechType">
+            <select id="speechType" ${meetingLocked() ? "disabled" : ""}>
               <option value="PATHWAY">Pathway Speech</option>
               <option value="ICE_BREAKER">Ice Breaker</option>
               <option value="GUEST_SPEECH">Guest Speech</option>
@@ -517,12 +518,12 @@ function renderAgendaSpeechesPanel(speeches) {
 
           <label>
             Pathway
-            <input id="speechPathway" placeholder="Optional pathway" />
+            <input id="speechPathway" placeholder="Optional pathway" ${meetingLocked() ? "disabled" : ""} />
           </label>
 
           <label>
             Level
-            <select id="speechLevel">
+            <select id="speechLevel" ${meetingLocked() ? "disabled" : ""}>
               <option value="0">Not Applicable</option>
               <option value="1">Level 1</option>
               <option value="2">Level 2</option>
@@ -534,12 +535,12 @@ function renderAgendaSpeechesPanel(speeches) {
 
           <label>
             Project
-            <input id="speechProject" placeholder="Project name" />
+            <input id="speechProject" placeholder="Project name" ${meetingLocked() ? "disabled" : ""} />
           </label>
 
           <label>
             Evaluator Type
-            <select id="speechEvaluatorType">
+            <select id="speechEvaluatorType" ${meetingLocked() ? "disabled" : ""}>
               <option value="">No evaluator yet</option>
               <option value="MEMBER">Member</option>
               <option value="GUEST">Guest</option>
@@ -549,35 +550,40 @@ function renderAgendaSpeechesPanel(speeches) {
 
           <label id="speechMemberEvaluatorWrap" style="display:none;">
             Evaluator
-            <select id="speechMemberEvaluatorSelect">
+            <select id="speechMemberEvaluatorSelect" ${meetingLocked() ? "disabled" : ""}>
               ${renderPersonOptions(attendanceSources.members)}
             </select>
           </label>
 
           <label id="speechGuestEvaluatorWrap" style="display:none;">
             Guest Evaluator
-            <select id="speechGuestEvaluatorSelect">
+            <select id="speechGuestEvaluatorSelect" ${meetingLocked() ? "disabled" : ""}>
               ${renderPersonOptions(attendanceSources.guests)}
             </select>
           </label>
 
           <label id="speechVisitorEvaluatorWrap" style="display:none;">
             Visitor Evaluator
-            <input id="speechVisitorEvaluatorName" placeholder="Evaluator name" />
+            <input id="speechVisitorEvaluatorName" placeholder="Evaluator name" ${meetingLocked() ? "disabled" : ""} />
           </label>
 
           <label>
             Planned Duration
-            <input id="speechDuration" type="number" min="0" placeholder="Minutes" />
+            <input id="speechDuration" type="number" min="0" placeholder="Minutes" ${meetingLocked() ? "disabled" : ""} />
           </label>
 
           <label>
             Notes
-            <input id="speechNotes" placeholder="Optional notes" />
+            <input id="speechNotes" placeholder="Optional notes" ${meetingLocked() ? "disabled" : ""} />
           </label>
         </div>
 
-        <button class="primary-btn" id="addAgendaSpeechBtn" type="submit">
+        <button
+          class="primary-btn"
+          id="addAgendaSpeechBtn"
+          type="submit"
+          ${meetingLocked() ? "disabled" : ""}
+        >
           Add Planned Speech
         </button>
 
@@ -591,6 +597,8 @@ function renderAgendaSpeechesPanel(speeches) {
             <th>Speech</th>
             <th>Evaluator</th>
             <th>Status</th>
+            <th>Duration</th>
+            <th>Actions</th>
           </tr>
         </thead>
 
@@ -599,7 +607,10 @@ function renderAgendaSpeechesPanel(speeches) {
             speeches.length
               ? speeches.map((speech) => `
                 <tr>
-                  <td><strong>${escapeHtml(speech.planned_speaker_name || "Unassigned")}</strong></td>
+                  <td>
+                    <strong>${escapeHtml(speech.planned_speaker_name || "Unassigned")}</strong>
+                  </td>
+
                   <td>
                     ${escapeHtml(speech.speech_title || "-")}<br>
                     <small>
@@ -607,13 +618,50 @@ function renderAgendaSpeechesPanel(speeches) {
                       ${speech.level_number ? ` Level ${escapeHtml(speech.level_number)}` : ""}
                     </small>
                   </td>
-                  <td>${escapeHtml(speech.planned_evaluator_name || "No evaluator")}</td>
-                  <td>${escapeHtml(speech.speech_status || "PLANNED")}</td>
+
+                  <td>
+                    ${escapeHtml(speech.planned_evaluator_name || "No evaluator")}
+                  </td>
+
+                  <td>
+                    ${escapeHtml(speech.speech_status || "PLANNED")}
+                  </td>
+
+                  <td>
+                    ${
+                      speech.actual_duration_seconds
+                        ? `${Math.floor(Number(speech.actual_duration_seconds) / 60)}m ${Number(speech.actual_duration_seconds) % 60}s`
+                        : "-"
+                    }
+                  </td>
+
+                  <td>
+                    <button
+                      class="ghost-btn small-btn"
+                      type="button"
+                      data-edit-speech="${escapeHtml(speech.id)}"
+                      data-status="${escapeHtml(speech.speech_status || "PLANNED")}"
+                      data-duration="${escapeHtml(speech.actual_duration_seconds || 0)}"
+                      data-notes="${escapeHtml(speech.notes || "")}"
+                      ${meetingLocked() ? "disabled" : ""}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      class="ghost-btn small-btn danger"
+                      type="button"
+                      data-delete-speech="${escapeHtml(speech.id)}"
+                      ${meetingLocked() ? "disabled" : ""}
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               `).join("")
               : `
                 <tr>
-                  <td colspan="4">No speeches planned yet.</td>
+                  <td colspan="6">No speeches planned yet.</td>
                 </tr>
               `
           }
@@ -622,6 +670,9 @@ function renderAgendaSpeechesPanel(speeches) {
     </section>
   `;
 }
+
+
+
 function renderTableTopicsPanel(tableTopics, participants) {
   const usedRefs = new Set(
     tableTopics.map((row) => row.participant_ref_id)
@@ -642,7 +693,7 @@ function renderTableTopicsPanel(tableTopics, participants) {
         <div class="form-grid">
           <label>
             Participant
-            <select id="tableTopicParticipantSelect" required>
+            <select id="tableTopicParticipantSelect" required ${meetingLocked() ? "disabled" : ""}>
               <option value="">Select attendee</option>
               ${availableParticipants.map((participant) => `
                 <option
@@ -686,11 +737,7 @@ function renderTableTopicsPanel(tableTopics, participants) {
                   </td>
                   <td>${escapeHtml(row.participant_type || "-")}</td>
                   <td>
-                    <button
-                      class="ghost-btn small-btn danger"
-                      data-delete-table-topic="${escapeHtml(row.id)}"
-                      type="button"
-                    >
+                    <button  class="ghost-btn small-btn danger"  data-delete-table-topic="${escapeHtml(row.id)}"  type="button"  ${meetingLocked() ? "disabled" : ""}>
                       Remove
                     </button>
                   </td>
@@ -1706,6 +1753,77 @@ function bindAgendaSpeechEvents() {
       button.disabled = false;
     }
   });
+  document.querySelectorAll("[data-edit-speech]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const speechId = button.dataset.editSpeech;
+
+    const speechStatus = prompt(
+      "Speech status",
+      button.dataset.status || "PLANNED"
+    );
+
+    if (speechStatus === null) return;
+
+    const durationMinutes = prompt(
+      "Actual duration in minutes",
+      button.dataset.duration
+        ? String(Math.round(Number(button.dataset.duration || 0) / 60))
+        : "0"
+    );
+
+    if (durationMinutes === null) return;
+
+    const notes = prompt(
+      "Notes",
+      button.dataset.notes || ""
+    );
+
+    if (notes === null) return;
+
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/agenda-speeches/${speechId}`,
+        {
+          method: "PUT",
+          body: {
+            speechStatus,
+            actualDurationSeconds: Number(durationMinutes || 0) * 60,
+            notes
+          }
+        }
+      );
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+});
+
+document.querySelectorAll("[data-delete-speech]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const speechId = button.dataset.deleteSpeech;
+
+    if (!confirm("Delete this speech?")) {
+      return;
+    }
+
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/agenda-speeches/${speechId}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+});
 }
 
 function bindAwardEvents() {
