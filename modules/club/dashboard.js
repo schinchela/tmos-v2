@@ -82,6 +82,13 @@ export async function initClubDashboard() {
       apiRequest("/api/members")
     ]);
 
+    const titleEl = document.getElementById("clubDashboardTitle");
+    const subtitleEl = document.getElementById("clubDashboardSubtitle");
+
+    if (!titleEl || !subtitleEl) {
+      return;
+    }
+
     const club = contextResponse.data.club;
     const members = membersResponse.data || [];
 
@@ -93,8 +100,8 @@ export async function initClubDashboard() {
       ? 0
       : Math.round((activeMembers / totalMembers) * 100);
 
-    document.getElementById("clubDashboardTitle").textContent = club.name;
-    document.getElementById("clubDashboardSubtitle").textContent =
+    titleEl.textContent = club.name;
+    subtitleEl.textContent =
       `Welcome to ${club.name}. Track membership, officers, meetings, education and reports.`;
 
     document.getElementById("dashTotalMembers").textContent = totalMembers;
@@ -107,7 +114,11 @@ export async function initClubDashboard() {
     document.getElementById("dashClubStatus").textContent = club.status || "-";
     document.getElementById("dashClubTimezone").textContent = club.timezone || "-";
   } catch (error) {
-    document.getElementById("clubDashboardSubtitle").textContent =
-      `Failed to load dashboard: ${escapeHtml(error.message)}`;
+    const subtitleEl = document.getElementById("clubDashboardSubtitle");
+
+    if (subtitleEl) {
+      subtitleEl.textContent =
+        `Failed to load dashboard: ${escapeHtml(error.message)}`;
+    }
   }
 }
