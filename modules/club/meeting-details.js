@@ -21,6 +21,9 @@ let meetingMinutes = {
   announcements: "",
   general_notes: ""
 };
+let publicAgenda = {
+  published: false
+};
 
 
 function meetingLocked() {
@@ -1193,8 +1196,88 @@ function renderMeetingMinutesPanel() {
     </section>
   `;
 }
+async function loadPublicAgendaStatus() {
+  try {
+    const response = await apiRequest(
+      `/api/meetings/${currentMeetingId}/publish-agenda`
+    );
 
+    publicAgenda = response.data || {
+      published: false
+    };
+  } catch (_) {
+    publicAgenda = {
+      published: false
+    };
+  }
+}
+function renderPublicAgendaPanel() {
+  const url = publicAgenda?.url || "";
 
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Public Agenda</h3>
+        <span class="badge">
+          ${publicAgenda?.published ? "Published" : "Not Published"}
+        </span>
+      </div>
+
+      <div class="enterprise-form">
+        <p>
+          Publish a public agenda link that members and guests can view without login.
+        </p>
+
+        <div class="top-actions">
+          <button
+            class="primary-btn"
+            id="publishAgendaBtn"
+            type="button"
+          >
+            ${publicAgenda?.published ? "Republish Agenda" : "Publish Agenda"}
+          </button>
+
+          ${
+            publicAgenda?.published
+              ? `
+                <button
+                  class="ghost-btn"
+                  id="copyPublicAgendaBtn"
+                  type="button"
+                  data-url="${escapeHtml(url)}"
+                >
+                  Copy Link
+                </button>
+
+                <a
+                  class="ghost-btn"
+                  href="${escapeHtml(url)}"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  View Agenda
+                </a>
+              `
+              : ""
+          }
+        </div>
+
+        ${
+          publicAgenda?.published
+            ? `
+              <input
+                value="${escapeHtml(url)}"
+                readonly
+              />
+            `
+            : ""
+        }
+
+        <p class="form-message" id="publicAgendaMessage"></p>
+      </div>
+    </section>
+  `;
+}
 function renderMeetingCommandCenter(data) {
   const meeting = data.meeting;
 
@@ -1251,6 +1334,8 @@ ${renderMeetingSummary(data)}
     ${renderAwardsPanel(awardCandidates, votingSession, votingResults)}
 
     ${renderMeetingMinutesPanel()}
+
+    ${renderPublicAgendaPanel()}
 
     ${renderCloseMeetingPanel(meeting)}
   `;
@@ -1349,6 +1434,7 @@ async function loadMeetingDetails() {
   await loadVotingResults();
   await loadFinalizedAwards();
   await loadMeetingMinutes();
+  await loadPublicAgendaStatus();
   
   const response = await apiRequest(`/api/meetings/${currentMeetingId}`);
   meetingData = response.data;
@@ -1547,6 +1633,7 @@ function bindMeetingCommandCenterEvents() {
   bindTableTopicEvents();
   bindAwardEvents();
   bindMeetingMinutes();
+  bindPublicAgenda();
   bindCloseMeetingEvents();
   
 }
@@ -2180,6 +2267,43 @@ function bindMeetingMinutes() {
       message.textContent = error.message;
     }
   });
+}
+
+function bindPublicAgenda() 
+{
+  document.getElementById("publishAgendaBtn")?.addEventListener("click", async () => {
+  const message = document.getElementById("publicAgendaMessage");
+
+  message.textContent = "Publishing agenda...";
+
+  try {
+    await apiRequest(
+      `/api/meetings/${currentMeetingId}/publish-agenda`,
+      {
+        method: "POST"
+      }
+    );
+
+    message.textContent = "Agenda published.";
+    window.__keepMeetingScroll = true;
+    await loadMeetingDetails();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+
+document.getElementById("copyPublicAgendaBtn")?.addEventListener("click", async (event) => {
+  const url = event.currentTarget.dataset.url;
+
+  try {
+    await navigator.clipboard.writeText(url);
+    document.getElementById("publicAgendaMessage").textContent =
+      "Public agenda link copied.";
+  } catch (_) {
+    document.getElementById("publicAgendaMessage").textContent =
+      "Could not copy link. Please copy it manually.";
+  }
+});
 }
 
 export async function initMeetingDetails() {
