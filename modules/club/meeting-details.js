@@ -183,7 +183,128 @@ function activeMeetingRoles() {
   return meetingRoleConfig.filter((role) => Number(role.is_active) === 1);
 }
 
+function renderAgendaRolesPanel(roles) {
+  const plannedRoleCodes = new Set(
+    roles.map((role) => role.role_code)
+  );
 
+  const configRoles = activeMeetingRoles().filter(
+    (role) => !plannedRoleCodes.has(role.config_key)
+  );
+
+  const availableMembers = attendanceSources.members;
+  const availableGuests = attendanceSources.guests;
+
+  return `
+    <section class="module-panel">
+      <div class="panel-header">
+        <h3>Agenda & Roles</h3>
+        <span class="badge">${roles.length} Planned</span>
+      </div>
+
+      <form class="enterprise-form" id="addAgendaRoleForm">
+        <div class="form-grid">
+
+          <label>
+            Role
+            <select id="agendaRoleSelect" required>
+              <option value="">Select role</option>
+              ${configRoles.map((role) => `
+                <option
+                  value="${escapeHtml(role.config_key)}"
+                  data-name="${escapeHtml(role.config_name)}"
+                >
+                  ${escapeHtml(role.config_name)}
+                </option>
+              `).join("")}
+            </select>
+          </label>
+
+          <label>
+            Assign From
+            <select id="agendaRoleSourceType">
+              <option value="">Leave Vacant</option>
+              <option value="MEMBER">Member</option>
+              <option value="GUEST">Guest</option>
+              <option value="VISITOR">Manual Visitor</option>
+            </select>
+          </label>
+
+          <label id="agendaMemberWrap" style="display:none;">
+            Member
+            <select id="agendaMemberSelect">
+              ${renderPersonOptions(availableMembers)}
+            </select>
+          </label>
+
+          <label id="agendaGuestWrap" style="display:none;">
+            Guest
+            <select id="agendaGuestSelect">
+              ${renderPersonOptions(availableGuests)}
+            </select>
+          </label>
+
+          <label id="agendaVisitorWrap" style="display:none;">
+            Visitor Name
+            <input id="agendaVisitorName" placeholder="Visitor name" />
+          </label>
+
+          <label>
+            Notes
+            <input id="agendaRoleNotes" placeholder="Optional notes" />
+          </label>
+
+        </div>
+
+        <button
+          class="primary-btn"
+          id="addAgendaRoleBtn"
+          type="submit"
+        >
+          Add Planned Role
+        </button>
+
+        <p class="form-message" id="agendaRoleMessage"></p>
+      </form>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Planned Person</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${
+            roles.length
+              ? roles.map((role) => `
+                <tr>
+                  <td>
+                    <strong>${escapeHtml(role.role_name)}</strong>
+                  </td>
+                  <td>
+                    ${escapeHtml(role.planned_display_name || "Vacant")}
+                  </td>
+                  <td>
+                    ${escapeHtml(role.assignment_status || "PLANNED")}
+                  </td>
+                </tr>
+              `).join("")
+              : `
+                <tr>
+                  <td colspan="3">
+                    No agenda roles planned yet.
+                  </td>
+                </tr>
+              `
+          }
+        </tbody>
+      </table>
+    </section>
+  `;
+}
 
 function renderParticipantsPanel(participants) {
   const existingMemberIds = new Set(
