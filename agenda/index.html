@@ -156,9 +156,9 @@
       "https://api.tmos.rowepal.com";
 
     const token =
-      window.location.pathname
-        .replace(/^\/agenda\//, "")
-        .replace(/\/$/, "");
+  window.location.pathname
+    .replace(/^\/agenda\/?/, "")
+    .replace(/\/$/, "");
 
     async function loadAgenda() {
       try {
