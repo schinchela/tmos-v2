@@ -4818,7 +4818,7 @@ async function runClubMigrations(env, databaseId) {
     {
     version: "026_meeting_minutes",
     apply: applyMigration026
-  }
+  },
     {
   version: "027_public_agendas",
   apply: applyMigration027
