@@ -4482,13 +4482,45 @@ async function saveMeetingMinutes(request, env, meetingId) {
     }
   });
 }
+function meetingDateToken(meetingDate) {
+  const [year, month, day] = String(meetingDate || "").split("-");
+
+  if (!year || !month || !day) {
+    return crypto.randomUUID().replaceAll("-", "").substring(0, 12);
+  }
+
+  return `${day}${month}${year}`;
+}
 
 async function publishMeetingAgenda(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
 
-  const token = generateSlug(24);
   const timestamp = now();
+
+  const meetingResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT meeting_date
+      FROM meetings
+      WHERE id = ${sqlValue(meetingId)}
+      LIMIT 1
+    `
+  );
+
+  const meeting =
+    meetingResult?.[0]?.results?.[0] ||
+    meetingResult?.results?.[0];
+
+  if (!meeting) {
+    return json({
+      success: false,
+      error: "Meeting not found"
+    }, 404);
+  }
+
+  const token = meetingDateToken(meeting.meeting_date);
 
   await executeClubStatement(
     env,
@@ -4525,7 +4557,7 @@ async function publishMeetingAgenda(request, env, meetingId) {
     success: true,
     data: {
       token,
-      url: `${FRONTEND_URL}/agenda/?token=${token}`
+      url: `${FRONTEND_URL}/agenda/${token}`
     }
   });
 }
@@ -4554,9 +4586,9 @@ async function getMeetingAgendaPublication(request, env, meetingId) {
     success: true,
     data: row
       ? {
-          published: true,
+          published: Number(row.is_published) === 1,
           token: row.public_token,
-          url: `${FRONTEND_URL}/agenda/?token=${row.public_token}`
+          url: `${FRONTEND_URL}/agenda/${row.public_token}`
         }
       : {
           published: false
