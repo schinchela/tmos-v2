@@ -5312,7 +5312,7 @@ async function handleRequest(request, env,ctx) {
       schemaMigrations: CLUB_MIGRATIONS.map((m) => m.version)
     });
   }
-
+   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/setup/password" && request.method === "POST") return setupPassword(request, env);
   if (url.pathname === "/api/auth/login" && request.method === "POST") return login(request, env);
   if (url.pathname === "/api/auth/logout" && request.method === "POST") return logout(request, env);
@@ -5415,7 +5415,7 @@ async function handleRequest(request, env,ctx) {
 
 
   
-  if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
+ 
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "POST") return createClub(request, env);
   if (url.pathname === "/api/platform/provisioning" && request.method === "GET") return listProvisioningJobs(request, env);
