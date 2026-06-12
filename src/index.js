@@ -4281,37 +4281,7 @@ async function deleteMeetingParticipant(
   });
 }
 
-async function updateAgendaRole(
-  request,
-  env,
-  meetingId,
-  roleId
-) {
-  const auth = await requireAuth(request, env);
-  if (!auth.ok) return auth.response;
 
-  const body = await request.json();
-
-  await executeClubStatement(
-    env,
-    auth.user.club_id,
-    `
-      UPDATE meeting_role_assignments
-      SET
-        role_name = ${sqlValue(body.roleName)},
-        planned_display_name = ${sqlValue(body.plannedDisplayName)},
-        assignment_status = ${sqlValue(body.assignmentStatus)},
-        notes = ${sqlValue(body.notes)},
-        updated_at = ${sqlValue(now())}
-      WHERE id = ${sqlValue(roleId)}
-        AND meeting_id = ${sqlValue(meetingId)}
-    `
-  );
-
-  return json({
-    success: true
-  });
-}
 async function deleteAgendaRole(request, env, meetingId, roleId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
@@ -5312,7 +5282,7 @@ async function handleRequest(request, env,ctx) {
       schemaMigrations: CLUB_MIGRATIONS.map((m) => m.version)
     });
   }
-   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
+  if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/setup/password" && request.method === "POST") return setupPassword(request, env);
   if (url.pathname === "/api/auth/login" && request.method === "POST") return login(request, env);
   if (url.pathname === "/api/auth/logout" && request.method === "POST") return logout(request, env);
