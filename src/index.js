@@ -4411,6 +4411,52 @@ async function deleteAgendaRole(request, env, meetingId, roleId) {
   });
 }
 
+async function updateMeetingSpeech(request, env, meetingId, speechId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE meeting_speeches
+      SET
+        speech_status = ${sqlValue(body.speechStatus || "PLANNED")},
+        actual_duration_seconds = ${Number(body.actualDurationSeconds || 0)},
+        notes = ${sqlValue(body.notes)},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(speechId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
+
+async function deleteMeetingSpeech(request, env, meetingId, speechId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      DELETE FROM meeting_speeches
+      WHERE id = ${sqlValue(speechId)}
+        AND meeting_id = ${sqlValue(meetingId)}
+    `
+  );
+
+  return json({
+    success: true
+  });
+}
+
+
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
@@ -5359,6 +5405,10 @@ async function handleRequest(request, env) {
   const agendaRoleItemMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
   if (agendaRoleItemMatch && request.method === "PUT") {  return updateAgendaRole(request,env,agendaRoleItemMatch[1],agendaRoleItemMatch[2]);}
   if (agendaRoleItemMatch && request.method === "DELETE") { return deleteAgendaRole(request,env,agendaRoleItemMatch[1],agendaRoleItemMatch[2]);}
+  const meetingSpeechItemMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-speeches\/([^/]+)$/);
+  if (meetingSpeechItemMatch && request.method === "PUT") { return updateMeetingSpeech(request,env,meetingSpeechItemMatch[1],meetingSpeechItemMatch[2]);}
+  if (meetingSpeechItemMatch && request.method === "DELETE") { return deleteMeetingSpeech(request,env,meetingSpeechItemMatch[1],meetingSpeechItemMatch[2]);}
+
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
   if (url.pathname === "/api/platform/clubs" && request.method === "GET") return listClubs(env);
