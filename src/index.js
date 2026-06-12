@@ -4901,6 +4901,257 @@ async function getMeetingMinutesPublication(
         }
   });
 }
+async function getPublicMinutes(
+  request,
+  env,
+  token
+) {
+  const clubsResult = await env.DB.prepare(`
+    SELECT
+      c.id AS club_id,
+      c.name AS club_name,
+      c.slug AS club_slug,
+      cd.database_identifier
+    FROM club_databases cd
+    JOIN clubs c
+      ON c.id = cd.club_id
+    WHERE cd.database_identifier IS NOT NULL
+  `).all();
+
+  const clubs =
+    clubsResult.results || [];
+
+  for (const club of clubs) {
+    try {
+      const publishedResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT *
+            FROM meeting_public_minutes
+            WHERE public_token =
+              ${sqlValue(token)}
+              AND is_published = 1
+            LIMIT 1
+          `
+        );
+
+      const published =
+        publishedResult?.[0]?.results?.[0] ||
+        publishedResult?.results?.[0] ||
+        null;
+
+      if (!published) {
+        continue;
+      }
+
+      const meetingId =
+        published.meeting_id;
+
+      const meetingResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT *
+            FROM meetings
+            WHERE id =
+              ${sqlValue(meetingId)}
+            LIMIT 1
+          `
+        );
+
+      const meeting =
+        meetingResult?.[0]?.results?.[0] ||
+        meetingResult?.results?.[0] ||
+        null;
+
+      if (!meeting) {
+        continue;
+      }
+
+      const rolesResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT
+              role_name,
+              planned_display_name
+            FROM meeting_role_assignments
+            WHERE meeting_id =
+              ${sqlValue(meetingId)}
+            ORDER BY
+              sequence_order ASC,
+              role_name ASC
+          `
+        );
+
+      const speechesResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT
+              planned_speaker_name,
+              planned_evaluator_name,
+              speech_title
+            FROM meeting_speeches
+            WHERE meeting_id =
+              ${sqlValue(meetingId)}
+            ORDER BY created_at ASC
+          `
+        );
+
+      const tableTopicsResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT
+              participant_name
+            FROM meeting_table_topics
+            WHERE meeting_id =
+              ${sqlValue(meetingId)}
+            ORDER BY participant_name
+          `
+        );
+
+      const awardsResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT *
+            FROM meeting_awards
+            WHERE meeting_id =
+              ${sqlValue(meetingId)}
+            ORDER BY award_name
+          `
+        );
+
+      const minutesResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT *
+            FROM meeting_minutes
+            WHERE meeting_id =
+              ${sqlValue(meetingId)}
+            LIMIT 1
+          `
+        );
+
+      const attendanceResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT
+              COUNT(*) AS membersPresent
+            FROM member_attendance
+            WHERE meeting_id =
+              ${sqlValue(meetingId)}
+              AND attendance_status = 'PRESENT'
+          `
+        );
+
+      const guestAttendanceResult =
+        await runCloudflareD1Query(
+          env,
+          club.database_identifier,
+          `
+            SELECT
+              COUNT(*) AS guestsPresent
+            FROM guest_attendance
+            WHERE meeting_id =
+              ${sqlValue(meetingId)}
+          `
+        );
+
+      const membersPresent =
+        Number(
+          attendanceResult?.[0]?.results?.[0]
+            ?.membersPresent ||
+          attendanceResult?.results?.[0]
+            ?.membersPresent ||
+          0
+        );
+
+      const guestsPresent =
+        Number(
+          guestAttendanceResult?.[0]?.results?.[0]
+            ?.guestsPresent ||
+          guestAttendanceResult?.results?.[0]
+            ?.guestsPresent ||
+          0
+        );
+
+      return json({
+        success: true,
+        data: {
+          club: {
+            id: club.club_id,
+            name: club.club_name,
+            slug: club.club_slug
+          },
+
+          meeting,
+
+          attendance: {
+            membersPresent,
+            guestsPresent,
+            totalPresent:
+              membersPresent +
+              guestsPresent
+          },
+
+          roles:
+            rolesResult?.[0]?.results ||
+            rolesResult?.results ||
+            [],
+
+          speeches:
+            speechesResult?.[0]?.results ||
+            speechesResult?.results ||
+            [],
+
+          tableTopics:
+            tableTopicsResult?.[0]?.results ||
+            tableTopicsResult?.results ||
+            [],
+
+          awards:
+            awardsResult?.[0]?.results ||
+            awardsResult?.results ||
+            [],
+
+          minutes:
+            minutesResult?.[0]?.results?.[0] ||
+            minutesResult?.results?.[0] ||
+            {}
+        }
+      });
+    } catch (error) {
+      console.error(
+        "PUBLIC_MINUTES_ERROR",
+        error
+      );
+
+      continue;
+    }
+  }
+
+  return json(
+    {
+      success: false,
+      error: "Public minutes not found"
+    },
+    404
+  );
+}
 
 async function getAppliedMigrationVersions(env, databaseId) {
   try {
