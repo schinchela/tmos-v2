@@ -5290,7 +5290,7 @@ async function completeProvisioning(request, env, jobId) {
   });
 }
 
-async function handleRequest(request, env) {
+async function handleRequest(request, env,ctx) {
   const url = new URL(request.url);
   const pathParts = url.pathname
   .split("/")
