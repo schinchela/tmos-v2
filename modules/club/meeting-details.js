@@ -2166,47 +2166,6 @@ function bindTableTopicEvents() {
 }
 
 
-
-function bindCloseMeetingEvents() {
-  document.getElementById("closeMeetingBtn")?.addEventListener("click", async () => {
-    const message = document.getElementById("closeMeetingMessage");
-
-    if (!confirm("Close this meeting? This will mark it as completed.")) return;
-
-    message.textContent = "Closing meeting...";
-
-    try {
-      await apiRequest(`/api/meetings/${currentMeetingId}/close`, {
-        method: "POST"
-      });
-
-      window.__keepMeetingScroll = true;
-      await loadMeetingDetails();
-    } catch (error) {
-      message.textContent = error.message;
-    }
-  });
-
-  document.getElementById("reopenMeetingBtn")?.addEventListener("click", async () => {
-    const message = document.getElementById("closeMeetingMessage");
-
-    if (!confirm("Reopen this meeting for corrections?")) return;
-
-    message.textContent = "Reopening meeting...";
-
-    try {
-      await apiRequest(`/api/meetings/${currentMeetingId}/reopen`, {
-        method: "POST"
-      });
-
-      window.__keepMeetingScroll = true;
-      await loadMeetingDetails();
-    } catch (error) {
-      message.textContent = error.message;
-    }
-  });
-}
-
 function bindMeetingMinutes()
 {
   document.getElementById("meetingMinutesForm")?.addEventListener("submit", async (event) => {
