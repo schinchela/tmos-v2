@@ -837,7 +837,7 @@ async function applyMigration027(env, databaseId) {
       `
     ]
   );
-}
+},
 
 async function applyMigration028(env, databaseId) {
   await runCloudflareD1Batch(
