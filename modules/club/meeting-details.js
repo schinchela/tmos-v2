@@ -28,6 +28,35 @@ let publicMinutes = {
   published: false
 };
 
+const PATHWAYS = [
+  "Dynamic Leadership",
+  "Effective Coaching",
+  "Engaging Humor",
+  "Innovative Planning",
+  "Leadership Development",
+  "Motivational Strategies",
+  "Persuasive Influence",
+  "Presentation Mastery",
+  "Strategic Relationships",
+  "Team Collaboration",
+  "Visionary Communication"
+];
+
+function renderPathwayOptions(selected = "") {
+  return `
+    <option value="">Select Pathway</option>
+    ${PATHWAYS.map((pathway) => `
+      <option
+        value="${escapeHtml(pathway)}"
+        ${pathway === selected ? "selected" : ""}
+      >
+        ${escapeHtml(pathway)}
+      </option>
+    `).join("")}
+  `;
+}
+
+
 function meetingLocked() {
   return Boolean(
     meetingData?.meeting?.locked_at ||
@@ -514,37 +543,37 @@ function renderAgendaSpeechesPanel(speeches) {
           </label>
 
           <label>
-            Speech Title
-            <input id="speechTitle" placeholder="Speech title" required ${meetingLocked() ? "disabled" : ""} />
-          </label>
+  Speech Title
+  <input
+    name="speechTitle"
+    id="speechTitle"
+    placeholder="Leave blank if not finalized"
+  />
+</label>
 
-          <label>
-            Speech Type
-            <select id="speechType" ${meetingLocked() ? "disabled" : ""}>
-              <option value="PATHWAY">Pathway Speech</option>
-              <option value="ICE_BREAKER">Ice Breaker</option>
-              <option value="GUEST_SPEECH">Guest Speech</option>
-              <option value="WORKSHOP">Workshop</option>
-              <option value="SPECIAL">Special Speech</option>
-            </select>
-          </label>
+<label>
+  Pathway
+  <select
+    name="pathwayName"
+    id="speechPathwayName"
+  >
+    ${renderPathwayOptions()}
+  </select>
+</label>
 
-          <label>
-            Pathway
-            <input id="speechPathway" placeholder="Optional pathway" ${meetingLocked() ? "disabled" : ""} />
-          </label>
 
-          <label>
-            Level
-            <select id="speechLevel" ${meetingLocked() ? "disabled" : ""}>
-              <option value="0">Not Applicable</option>
-              <option value="1">Level 1</option>
-              <option value="2">Level 2</option>
-              <option value="3">Level 3</option>
-              <option value="4">Level 4</option>
-              <option value="5">Level 5</option>
-            </select>
-          </label>
+
+<label>
+  Level
+  <select name="levelNumber" id="speechLevelNumber">
+    <option value="">Not set</option>
+    <option value="1">Level 1</option>
+    <option value="2">Level 2</option>
+    <option value="3">Level 3</option>
+    <option value="4">Level 4</option>
+    <option value="5">Level 5</option>
+  </select>
+</label>
 
           <label>
             Project
@@ -1970,33 +1999,47 @@ function bindAgendaSpeechEvents() {
       }
 
       const body = {
-        plannedSpeakerType: selectedSpeakerType,
-        plannedSpeakerId,
-        plannedSpeakerName,
-        plannedSpeakerEmail,
+  plannedSpeakerType: selectedSpeakerType,
+  plannedSpeakerId,
+  plannedSpeakerName,
+  plannedSpeakerEmail,
 
-        plannedEvaluatorType: selectedEvaluatorType || null,
-        plannedEvaluatorId,
-        plannedEvaluatorName,
-        plannedEvaluatorEmail,
+  plannedEvaluatorType: selectedEvaluatorType || null,
+  plannedEvaluatorId,
+  plannedEvaluatorName,
+  plannedEvaluatorEmail,
 
-        speechTitle: document.getElementById("speechTitle")?.value?.trim() || "",
-        speechType: document.getElementById("speechType")?.value || "PATHWAY",
-        pathwayName: document.getElementById("speechPathway")?.value?.trim() || "",
-        levelNumber: Number(document.getElementById("speechLevel")?.value || 0),
-        projectName: document.getElementById("speechProject")?.value?.trim() || "",
-        plannedDurationMin: Number(document.getElementById("speechDuration")?.value || 0),
-        notes: document.getElementById("speechNotes")?.value?.trim() || ""
-      };
+  speechTitle:
+    document.getElementById("speechTitle")?.value?.trim() ||
+    "To Be Announced",
+
+  speechType: "PATHWAY",
+
+  pathwayName:
+    document.getElementById("speechPathwayName")?.value || "",
+
+  levelNumber:
+    Number(
+      document.getElementById("speechLevelNumber")?.value || 0
+    ),
+
+  projectName:
+    document.getElementById("speechProjectName")?.value?.trim() || "",
+
+  plannedDurationMin:
+    Number(
+      document.getElementById("speechDuration")?.value || 0
+    ),
+
+  notes:
+    document.getElementById("speechNotes")?.value?.trim() || ""
+};
 
       if (!body.plannedSpeakerName) {
         throw new Error("Speaker is required.");
       }
 
-      if (!body.speechTitle) {
-        throw new Error("Speech title is required.");
-      }
-
+      
       await apiRequest(`/api/meetings/${currentMeetingId}/speeches`, {
         method: "POST",
         body
