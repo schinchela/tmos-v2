@@ -5292,9 +5292,7 @@ async function completeProvisioning(request, env, jobId) {
 
 async function handleRequest(request, env,ctx) {
   const url = new URL(request.url);
-  const pathParts = url.pathname
-  .split("/")
-  .filter(Boolean);
+  
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
@@ -5400,8 +5398,9 @@ async function handleRequest(request, env,ctx) {
   if (closeMeetingMatch && request.method === "POST") { return closeMeeting(request,env,closeMeetingMatch[1]);}
   const reopenMeetingMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/reopen$/);
   if (reopenMeetingMatch && request.method === "POST") {return reopenMeeting(request,env,reopenMeetingMatch[1]);}
-  if (pathParts.length === 5 &&  pathParts[0] === "api" &&  pathParts[1] === "meetings" &&  pathParts[3] === "participants" &&  request.method === "PUT") {  return updateMeetingParticipant(request,env,pathParts[2],pathParts[4]);}  
-  if (pathParts.length === 5 &&  pathParts[0] === "api" &&  pathParts[1] === "meetings" &&  pathParts[3] === "participants" &&  request.method === "DELETE") {  return deleteMeetingParticipant(request,env,pathParts[2],pathParts[4]);}
+  const meetingParticipantItemMatch =  url.pathname.match(/^\/api\/meetings\/([^/]+)\/participants\/([^/]+)$/);
+  if (meetingParticipantItemMatch && request.method === "PUT") { return updateMeetingParticipant(request,env,meetingParticipantItemMatch[1],meetingParticipantItemMatch[2]);}
+  if (meetingParticipantItemMatch && request.method === "DELETE") { return deleteMeetingParticipant(request,env,meetingParticipantItemMatch[1],meetingParticipantItemMatch[2]);}
   const deleteAgendaRoleMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
   if (deleteAgendaRoleMatch && request.method === "DELETE") { return deleteAgendaRole(request,env,deleteAgendaRoleMatch[1],deleteAgendaRoleMatch[2]);}
   const agendaRoleItemMatch = url.pathname.match(/^\/api\/meetings\/([^/]+)\/agenda-roles\/([^/]+)$/);
