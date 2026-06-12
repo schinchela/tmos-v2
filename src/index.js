@@ -4084,6 +4084,110 @@ async function applyMigration024ForMyClub(request, env) {
   });
 }
 
+async function applyMigration025(env, databaseId) {
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS guests (
+        id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        organization TEXT,
+        guest_status TEXT NOT NULL DEFAULT 'ACTIVE',
+        first_seen_at TEXT,
+        last_seen_at TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guests_email",
+    "guests",
+    "email"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guests_status",
+    "guests",
+    "guest_status"
+  );
+
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS guest_attendance (
+        id TEXT PRIMARY KEY,
+        guest_id TEXT NOT NULL,
+        meeting_id TEXT,
+        meeting_date TEXT NOT NULL,
+        attendance_status TEXT NOT NULL DEFAULT 'PRESENT',
+        notes TEXT,
+        created_at TEXT NOT NULL
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_attendance_guest",
+    "guest_attendance",
+    "guest_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_attendance_meeting",
+    "guest_attendance",
+    "meeting_id"
+  );
+
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS guest_awards (
+        id TEXT PRIMARY KEY,
+        guest_id TEXT NOT NULL,
+        meeting_id TEXT,
+        award_key TEXT,
+        award_name TEXT NOT NULL,
+        award_date TEXT,
+        source TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_awards_guest",
+    "guest_awards",
+    "guest_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_awards_meeting",
+    "guest_awards",
+    "meeting_id"
+  );
+}
+
 async function runClubMigrations(env, databaseId) {
   const applied = [];
 
@@ -4100,6 +4204,8 @@ async function runClubMigrations(env, databaseId) {
   await applyMigration021(env, databaseId);
   await applyMigration022(env, databaseId);
   await applyMigration023(env, databaseId);
+  await applyMigration024(env, databaseId);
+  await applyMigration025(env, databaseId);
   
 await runCloudflareD1Batch(env,databaseId,
   [
@@ -4194,6 +4300,8 @@ await runCloudflareD1Batch(env,databaseId,
   applied.push("021_award_candidates");
   applied.push("022_meeting_role_assignment_planning");
   applied.push("023_voting_sessions");
+  applied.push("024_meeting_locking");
+  applied.push("025_guest_foundation");
   return applied;
 }
 
