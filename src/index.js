@@ -4558,7 +4558,7 @@ async function publishMeetingAgenda(request, env, meetingId) {
     success: true,
     data: {
       token,
-      url: `${FRONTEND_URL}/agenda/${token}`
+      url: `${FRONTEND_URL}/agenda/?token=${token}`
     }
   });
 }
@@ -4597,7 +4597,7 @@ async function getMeetingAgendaPublication(request, env, meetingId) {
     data: {
       published: Number(row.is_published) === 1,
       token: row.public_token,
-      url: `${FRONTEND_URL}/agenda/${row.public_token}`
+      url: `${FRONTEND_URL}/agenda/?token=${row.public_token}`
     }
   });
 }
