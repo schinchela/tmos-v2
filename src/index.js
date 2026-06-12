@@ -770,78 +770,142 @@ async function applyMigration023(env, databaseId) {
   );
 }
 
-async function applyMigration024ForMyClub(request, env) {
-  const auth = await requireAuth(request, env);
-  if (!auth.ok) return auth.response;
-
-  if (!auth.user.club_id) {
-    return json({ success: false, error: "No club assigned" }, 400);
-  }
-
-  const dbInfo = await getClubDatabaseInfo(env, auth.user.club_id);
-
-  if (!dbInfo) {
-    return json({ success: false, error: "Club database not found" }, 404);
-  }
-
-  await applyMigration024(env, dbInfo.database_identifier);
-
-  await runCloudflareD1Batch(
+async function applyMigration024(env, databaseId) {
+  await ensureColumn(
     env,
-    dbInfo.database_identifier,
-    [
-      `
-        INSERT OR IGNORE INTO schema_migrations
-        (version, applied_at)
-        VALUES ('024_meeting_locking', datetime('now'))
-      `
-    ]
+    databaseId,
+    "meetings",
+    "locked_at",
+    "TEXT"
   );
 
-  return json({
-    success: true,
-    data: {
-      migration: "024_meeting_locking",
-      database: dbInfo.database_name
-    }
-  });
+  await ensureColumn(
+    env,
+    databaseId,
+    "meetings",
+    "locked_by",
+    "TEXT"
+  );
+
+  await ensureColumn(
+    env,
+    databaseId,
+    "meetings",
+    "lock_reason",
+    "TEXT"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_meetings_locked_at",
+    "meetings",
+    "locked_at"
+  );
 }
 
-async function applyMigration025ForMyClub(request, env) {
-  const auth = await requireAuth(request, env);
-  if (!auth.ok) return auth.response;
-
-  if (!auth.user.club_id) {
-    return json({ success: false, error: "No club assigned" }, 400);
-  }
-
-  const dbInfo = await getClubDatabaseInfo(env, auth.user.club_id);
-
-  if (!dbInfo) {
-    return json({ success: false, error: "Club database not found" }, 404);
-  }
-
-  await applyMigration025(env, dbInfo.database_identifier);
-
-  await runCloudflareD1Batch(
+async function applyMigration025(env, databaseId) {
+  await ensureTable(
     env,
-    dbInfo.database_identifier,
-    [
-      `
-        INSERT OR IGNORE INTO schema_migrations
-        (version, applied_at)
-        VALUES ('025_guest_foundation', datetime('now'))
-      `
-    ]
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS guests (
+        id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        organization TEXT,
+        guest_status TEXT NOT NULL DEFAULT 'ACTIVE',
+        first_seen_at TEXT,
+        last_seen_at TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `
   );
 
-  return json({
-    success: true,
-    data: {
-      migration: "025_guest_foundation",
-      database: dbInfo.database_name
-    }
-  });
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guests_email",
+    "guests",
+    "email"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guests_status",
+    "guests",
+    "guest_status"
+  );
+
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS guest_attendance (
+        id TEXT PRIMARY KEY,
+        guest_id TEXT NOT NULL,
+        meeting_id TEXT,
+        meeting_date TEXT NOT NULL,
+        attendance_status TEXT NOT NULL DEFAULT 'PRESENT',
+        notes TEXT,
+        created_at TEXT NOT NULL
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_attendance_guest",
+    "guest_attendance",
+    "guest_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_attendance_meeting",
+    "guest_attendance",
+    "meeting_id"
+  );
+
+  await ensureTable(
+    env,
+    databaseId,
+    `
+      CREATE TABLE IF NOT EXISTS guest_awards (
+        id TEXT PRIMARY KEY,
+        guest_id TEXT NOT NULL,
+        meeting_id TEXT,
+        award_key TEXT,
+        award_name TEXT NOT NULL,
+        award_date TEXT,
+        source TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      )
+    `
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_awards_guest",
+    "guest_awards",
+    "guest_id"
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guest_awards_meeting",
+    "guest_awards",
+    "meeting_id"
+  );
 }
 
 function json(data, status = 200) {
