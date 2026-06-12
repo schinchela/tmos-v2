@@ -5006,12 +5006,13 @@ async function runClubMigrations(env, databaseId) {
     {
   version: "027_public_agendas",
   apply: applyMigration027
-}
-  ];
-  {
+},
+     {
   version: "028_public_minutes",
   apply: applyMigration028
 }
+  ];
+ 
 
   for (const migration of upgradeMigrations) {
     if (appliedVersions.has(migration.version)) {
