@@ -4584,7 +4584,11 @@ async function runClubMigrations(env, databaseId) {
     {
       version: "025_guest_foundation",
       apply: applyMigration025
-    }
+    },
+    {
+    version: "026_meeting_minutes",
+    apply: applyMigration026
+  }
   ];
 
   for (const migration of upgradeMigrations) {
