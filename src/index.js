@@ -2252,7 +2252,7 @@ async function listMeetingParticipants(request, env, meetingId) {
 
 async function addMeetingParticipant(request, env, meetingId) {
   const auth = await requireAuth(request, env);
-
+ if (!auth.ok) return auth.response;
   const editable = await assertMeetingEditable(
   env,
   auth.user.club_id,
@@ -2261,7 +2261,7 @@ async function addMeetingParticipant(request, env, meetingId) {
 
 if (!editable.ok) return editable.response;
   
-  if (!auth.ok) return auth.response;
+ 
 
   if (!auth.user.club_id) {
     return json({ success: false, error: "No club assigned to this user" }, 400);
