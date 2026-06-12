@@ -269,32 +269,57 @@ function renderAgendaRolesPanel(roles) {
 
       <table class="table">
         <thead>
-          <tr>
-            <th>Role</th>
-            <th>Planned Person</th>
-            <th>Status</th>
-          </tr>
+          <thead>
+  <tr>
+    <th>Role</th>
+    <th>Planned Person</th>
+    <th>Status</th>
+    <th>Actions</th>
+  </tr>
         </thead>
 
         <tbody>
           ${
             roles.length
               ? roles.map((role) => `
-                <tr>
-                  <td>
-                    <strong>${escapeHtml(role.role_name)}</strong>
-                  </td>
-                  <td>
-                    ${escapeHtml(role.planned_display_name || "Vacant")}
-                  </td>
-                  <td>
-                    ${escapeHtml(role.assignment_status || "PLANNED")}
-                  </td>
-                </tr>
+               <tr>
+  <td>
+    <strong>${escapeHtml(role.role_name)}</strong>
+  </td>
+  <td>
+    ${escapeHtml(role.planned_display_name || "Vacant")}
+  </td>
+  <td>
+    ${escapeHtml(role.assignment_status || "PLANNED")}
+  </td>
+  <td>
+    <button
+      class="ghost-btn small-btn"
+      type="button"
+      data-edit-agenda-role="${escapeHtml(role.id)}"
+      data-role-name="${escapeHtml(role.role_name || "")}"
+      data-status="${escapeHtml(role.assignment_status || "PLANNED")}"
+      data-person-name="${escapeHtml(role.planned_display_name || "")}"
+      data-notes="${escapeHtml(role.notes || "")}"
+      ${meetingLocked() ? "disabled" : ""}
+    >
+      Edit
+    </button>
+
+    <button
+      class="ghost-btn small-btn danger"
+      type="button"
+      data-delete-agenda-role="${escapeHtml(role.id)}"
+      ${meetingLocked() ? "disabled" : ""}
+    >
+      Delete
+    </button>
+  </td>
+</tr>
               `).join("")
               : `
                 <tr>
-                  <td colspan="3">
+                  <td colspan="4">
                     No agenda roles planned yet.
                   </td>
                 </tr>
@@ -1487,6 +1512,84 @@ function bindAgendaRoleEvents() {
       button.disabled = false;
     }
   });
+
+  document.querySelectorAll("[data-edit-agenda-role]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const roleId = button.dataset.editAgendaRole;
+
+    const roleName = prompt(
+      "Role name",
+      button.dataset.roleName || ""
+    );
+
+    if (roleName === null) return;
+
+    const plannedDisplayName = prompt(
+      "Planned person name",
+      button.dataset.personName || ""
+    );
+
+    if (plannedDisplayName === null) return;
+
+    const assignmentStatus = prompt(
+      "Status",
+      button.dataset.status || "PLANNED"
+    );
+
+    if (assignmentStatus === null) return;
+
+    const notes = prompt(
+      "Notes",
+      button.dataset.notes || ""
+    );
+
+    if (notes === null) return;
+
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/agenda-roles/${roleId}`,
+        {
+          method: "PUT",
+          body: {
+            roleName,
+            assignmentStatus,
+            plannedDisplayName,
+            notes
+          }
+        }
+      );
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+});
+
+document.querySelectorAll("[data-delete-agenda-role]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const roleId = button.dataset.deleteAgendaRole;
+
+    if (!confirm("Delete this agenda role?")) {
+      return;
+    }
+
+    try {
+      await apiRequest(
+        `/api/meetings/${currentMeetingId}/agenda-roles/${roleId}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+      window.__keepMeetingScroll = true;
+      await loadMeetingDetails();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+});
 }
 
 function bindAgendaSpeechEvents() {
