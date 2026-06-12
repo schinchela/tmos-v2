@@ -4225,6 +4225,37 @@ await runCloudflareD1Batch(env,databaseId,
     `
   ]
 );
+  await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '024_meeting_locking',
+        datetime('now')
+      )
+    `
+  ]
+);
+await runCloudflareD1Batch(
+  env,
+  databaseId,
+  [
+    `
+      INSERT OR IGNORE INTO schema_migrations
+      (version, applied_at)
+      VALUES
+      (
+        '025_guest_foundation',
+        datetime('now')
+      )
+    `
+  ]
+);
+  
   
 
   applied.push("018_planned_agenda_speeches");
