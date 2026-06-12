@@ -357,11 +357,10 @@ export function renderClubMeetings() {
           <tr><td colspan="7">Loading meetings...</td></tr>
         </tbody>
       </table>
-    </section>
   </section>
 ${renderMeetingArchive(meetingsCache)}
 `;
-  `;
+
 }
 
 async function loadClubSettings() {
