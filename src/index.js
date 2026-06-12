@@ -5292,7 +5292,9 @@ async function completeProvisioning(request, env, jobId) {
 
 async function handleRequest(request, env) {
   const url = new URL(request.url);
-
+  const pathParts = url.pathname
+  .split("/")
+  .filter(Boolean);
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
