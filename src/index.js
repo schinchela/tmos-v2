@@ -770,7 +770,79 @@ async function applyMigration023(env, databaseId) {
   );
 }
 
+async function applyMigration024ForMyClub(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
 
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned" }, 400);
+  }
+
+  const dbInfo = await getClubDatabaseInfo(env, auth.user.club_id);
+
+  if (!dbInfo) {
+    return json({ success: false, error: "Club database not found" }, 404);
+  }
+
+  await applyMigration024(env, dbInfo.database_identifier);
+
+  await runCloudflareD1Batch(
+    env,
+    dbInfo.database_identifier,
+    [
+      `
+        INSERT OR IGNORE INTO schema_migrations
+        (version, applied_at)
+        VALUES ('024_meeting_locking', datetime('now'))
+      `
+    ]
+  );
+
+  return json({
+    success: true,
+    data: {
+      migration: "024_meeting_locking",
+      database: dbInfo.database_name
+    }
+  });
+}
+
+async function applyMigration025ForMyClub(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  if (!auth.user.club_id) {
+    return json({ success: false, error: "No club assigned" }, 400);
+  }
+
+  const dbInfo = await getClubDatabaseInfo(env, auth.user.club_id);
+
+  if (!dbInfo) {
+    return json({ success: false, error: "Club database not found" }, 404);
+  }
+
+  await applyMigration025(env, dbInfo.database_identifier);
+
+  await runCloudflareD1Batch(
+    env,
+    dbInfo.database_identifier,
+    [
+      `
+        INSERT OR IGNORE INTO schema_migrations
+        (version, applied_at)
+        VALUES ('025_guest_foundation', datetime('now'))
+      `
+    ]
+  );
+
+  return json({
+    success: true,
+    data: {
+      migration: "025_guest_foundation",
+      database: dbInfo.database_name
+    }
+  });
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -4047,79 +4119,7 @@ WHERE id = ${sqlValue(meetingId)}
   });
 }
 
-async function applyMigration024ForMyClub(request, env) {
-  const auth = await requireAuth(request, env);
-  if (!auth.ok) return auth.response;
 
-  if (!auth.user.club_id) {
-    return json({ success: false, error: "No club assigned" }, 400);
-  }
-
-  const dbInfo = await getClubDatabaseInfo(env, auth.user.club_id);
-
-  if (!dbInfo) {
-    return json({ success: false, error: "Club database not found" }, 404);
-  }
-
-  await applyMigration024(env, dbInfo.database_identifier);
-
-  await runCloudflareD1Batch(
-    env,
-    dbInfo.database_identifier,
-    [
-      `
-        INSERT OR IGNORE INTO schema_migrations
-        (version, applied_at)
-        VALUES ('024_meeting_locking', datetime('now'))
-      `
-    ]
-  );
-
-  return json({
-    success: true,
-    data: {
-      migration: "024_meeting_locking",
-      database: dbInfo.database_name
-    }
-  });
-}
-
-async function applyMigration025ForMyClub(request, env) {
-  const auth = await requireAuth(request, env);
-  if (!auth.ok) return auth.response;
-
-  if (!auth.user.club_id) {
-    return json({ success: false, error: "No club assigned" }, 400);
-  }
-
-  const dbInfo = await getClubDatabaseInfo(env, auth.user.club_id);
-
-  if (!dbInfo) {
-    return json({ success: false, error: "Club database not found" }, 404);
-  }
-
-  await applyMigration025(env, dbInfo.database_identifier);
-
-  await runCloudflareD1Batch(
-    env,
-    dbInfo.database_identifier,
-    [
-      `
-        INSERT OR IGNORE INTO schema_migrations
-        (version, applied_at)
-        VALUES ('025_guest_foundation', datetime('now'))
-      `
-    ]
-  );
-
-  return json({
-    success: true,
-    data: {
-      migration: "025_guest_foundation",
-      database: dbInfo.database_name
-    }
-  });
-}
 
 async function runClubMigrations(env, databaseId) {
   const applied = [];
