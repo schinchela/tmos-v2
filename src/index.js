@@ -4009,7 +4009,6 @@ async function assertMeetingEditable(env, clubId, meetingId) {
     meeting
   };
 }
-
 async function closeMeeting(request, env, meetingId) {
   const auth = await requireAuth(request, env);
   if (!auth.ok) return auth.response;
@@ -4032,13 +4031,19 @@ async function closeMeeting(request, env, meetingId) {
     meetingResult?.results?.[0];
 
   if (!meeting) {
-    return json({ success: false, error: "Meeting not found" }, 404);
+    return json({
+      success: false,
+      error: "Meeting not found"
+    }, 404);
   }
 
   if (meeting.status === "COMPLETED") {
     return json({
       success: true,
-      data: { meetingId, status: "COMPLETED" }
+      data: {
+        meetingId,
+        status: "COMPLETED"
+      }
     });
   }
 
@@ -4076,7 +4081,10 @@ async function closeMeeting(request, env, meetingId) {
   );
 
   for (const participant of participants) {
-    if (participant.participant_type === "MEMBER" && participant.participant_id) {
+    if (
+      participant.participant_type === "MEMBER" &&
+      participant.participant_id
+    ) {
       await executeClubStatement(
         env,
         auth.user.club_id,
@@ -4105,7 +4113,10 @@ async function closeMeeting(request, env, meetingId) {
       );
     }
 
-    if (participant.participant_type === "GUEST" && participant.participant_id) {
+    if (
+      participant.participant_type === "GUEST" &&
+      participant.participant_id
+    ) {
       await executeClubStatement(
         env,
         auth.user.club_id,
@@ -4120,7 +4131,7 @@ async function closeMeeting(request, env, meetingId) {
             created_at
           )
           VALUES (
-            ${sqlValue(id("guest_attendance"))},
+            ${sqlValue(id("gattendance"))},
             ${sqlValue(participant.participant_id)},
             ${sqlValue(meetingId)},
             ${sqlValue(meeting.meeting_date)},
@@ -4170,7 +4181,10 @@ async function closeMeeting(request, env, meetingId) {
   );
 
   for (const speech of speeches) {
-    if (speech.planned_speaker_type !== "MEMBER" || !speech.planned_speaker_id) {
+    if (
+      speech.planned_speaker_type !== "MEMBER" ||
+      !speech.planned_speaker_id
+    ) {
       continue;
     }
 
@@ -4205,7 +4219,7 @@ async function closeMeeting(request, env, meetingId) {
           ${sqlValue(meeting.meeting_date)},
           NULL,
           ${Number(speech.actual_duration_seconds || 0)},
-          'COMPLETED',
+          ${sqlValue(speech.speech_status || "COMPLETED")},
           ${sqlValue(speech.notes)},
           ${sqlValue(timestamp)},
           ${sqlValue(timestamp)}
@@ -4222,8 +4236,8 @@ async function closeMeeting(request, env, meetingId) {
       SET
         status = 'COMPLETED',
         locked_at = ${sqlValue(timestamp)},
-        locked_by = ${sqlValue(auth.user.email || auth.user.id || "system")},
-        lock_reason = ${sqlValue("Meeting completed and locked")},
+        locked_by = ${sqlValue(auth.user.id)},
+        lock_reason = 'Meeting closed',
         updated_at = ${sqlValue(timestamp)}
       WHERE id = ${sqlValue(meetingId)}
     `
