@@ -1,3 +1,5 @@
 /agenda/* /agenda/index.html 200
 /vote/* /vote/index.html 200
+/minutes/* /minutes/index.html 200
+/register-guest/* /register-guest/index.html 200
 /* /index.html 200
