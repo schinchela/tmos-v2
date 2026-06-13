@@ -5153,6 +5153,291 @@ async function getPublicMinutes(
   );
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+async function upsertGuestInClub(env, clubId, payload) {
+  const timestamp = now();
+
+  const displayName = String(payload.displayName || payload.display_name || "").trim();
+  const email = normalizeEmail(payload.email);
+  const phone = String(payload.phone || "").trim();
+  const organization = String(payload.organization || "").trim();
+  const notes = String(payload.notes || "").trim();
+
+  if (!displayName) {
+    return {
+      ok: false,
+      response: json({ success: false, error: "Guest name is required." }, 400)
+    };
+  }
+
+  let existing = null;
+
+  if (email) {
+    const existingResult = await executeClubQuery(
+      env,
+      clubId,
+      `
+        SELECT *
+        FROM guests
+        WHERE lower(email) = ${sqlValue(email)}
+        LIMIT 1
+      `
+    );
+
+    existing =
+      existingResult?.[0]?.results?.[0] ||
+      existingResult?.results?.[0] ||
+      null;
+  }
+
+  if (existing) {
+    await executeClubStatement(
+      env,
+      clubId,
+      `
+        UPDATE guests
+        SET
+          display_name = ${sqlValue(displayName)},
+          phone = ${sqlValue(phone)},
+          organization = ${sqlValue(organization)},
+          guest_status = CASE
+            WHEN guest_status = 'ARCHIVED' THEN 'ACTIVE'
+            ELSE guest_status
+          END,
+          last_seen_at = COALESCE(last_seen_at, ${sqlValue(timestamp)}),
+          notes = ${sqlValue(notes || existing.notes || "")},
+          updated_at = ${sqlValue(timestamp)}
+        WHERE id = ${sqlValue(existing.id)}
+      `
+    );
+
+    return {
+      ok: true,
+      id: existing.id,
+      created: false
+    };
+  }
+
+  const guestId = id("guest");
+
+  await executeClubStatement(
+    env,
+    clubId,
+    `
+      INSERT INTO guests (
+        id,
+        display_name,
+        email,
+        phone,
+        organization,
+        guest_status,
+        first_seen_at,
+        last_seen_at,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        ${sqlValue(guestId)},
+        ${sqlValue(displayName)},
+        ${sqlValue(email)},
+        ${sqlValue(phone)},
+        ${sqlValue(organization)},
+        'ACTIVE',
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(notes)},
+        ${sqlValue(timestamp)},
+        ${sqlValue(timestamp)}
+      )
+    `
+  );
+
+  return {
+    ok: true,
+    id: guestId,
+    created: true
+  };
+}
+
+async function createPublicGuest(request, env) {
+  const body = await request.json();
+
+  const clubId = body.clubId || body.club_id;
+
+  if (!clubId) {
+    return json({
+      success: false,
+      error: "Club ID is required."
+    }, 400);
+  }
+
+  const result = await upsertGuestInClub(env, clubId, body);
+
+  if (!result.ok) return result.response;
+
+  return json({
+    success: true,
+    data: {
+      id: result.id,
+      created: result.created
+    }
+  });
+}
+
+async function listGuests(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const result = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM guests
+      ORDER BY
+        CASE WHEN guest_status = 'ACTIVE' THEN 0 ELSE 1 END,
+        updated_at DESC,
+        display_name ASC
+    `
+  );
+
+  return json({
+    success: true,
+    data: result?.[0]?.results || result?.results || []
+  });
+}
+
+async function createGuest(request, env) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+  const result = await upsertGuestInClub(env, auth.user.club_id, body);
+
+  if (!result.ok) return result.response;
+
+  return json({
+    success: true,
+    data: {
+      id: result.id,
+      created: result.created
+    }
+  });
+}
+
+async function getGuest360(request, env, guestId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const guestResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM guests
+      WHERE id = ${sqlValue(guestId)}
+      LIMIT 1
+    `
+  );
+
+  const guest =
+    guestResult?.[0]?.results?.[0] ||
+    guestResult?.results?.[0] ||
+    null;
+
+  if (!guest) {
+    return json({ success: false, error: "Guest not found." }, 404);
+  }
+
+  const attendanceResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT
+        ga.*,
+        m.meeting_title,
+        m.meeting_theme
+      FROM guest_attendance ga
+      LEFT JOIN meetings m ON m.id = ga.meeting_id
+      WHERE ga.guest_id = ${sqlValue(guestId)}
+      ORDER BY ga.meeting_date DESC
+    `
+  );
+
+  const awardsResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT *
+      FROM guest_awards
+      WHERE guest_id = ${sqlValue(guestId)}
+      ORDER BY award_date DESC, created_at DESC
+    `
+  );
+
+  return json({
+    success: true,
+    data: {
+      guest,
+      attendance: attendanceResult?.[0]?.results || attendanceResult?.results || [],
+      awards: awardsResult?.[0]?.results || awardsResult?.results || []
+    }
+  });
+}
+
+async function updateGuest(request, env, guestId) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+  const timestamp = now();
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE guests
+      SET
+        display_name = ${sqlValue(body.displayName || body.display_name || "")},
+        email = ${sqlValue(normalizeEmail(body.email))},
+        phone = ${sqlValue(body.phone || "")},
+        organization = ${sqlValue(body.organization || "")},
+        guest_status = ${sqlValue(body.guestStatus || body.guest_status || "ACTIVE")},
+        notes = ${sqlValue(body.notes || "")},
+        updated_at = ${sqlValue(timestamp)}
+      WHERE id = ${sqlValue(guestId)}
+    `
+  );
+
+  return json({ success: true });
+}
+
+async function updateGuestStatus(request, env, guestId, status) {
+  const auth = await requireAuth(request, env);
+  if (!auth.ok) return auth.response;
+
+  await executeClubStatement(
+    env,
+    auth.user.club_id,
+    `
+      UPDATE guests
+      SET
+        guest_status = ${sqlValue(status)},
+        updated_at = ${sqlValue(now())}
+      WHERE id = ${sqlValue(guestId)}
+    `
+  );
+
+  return json({ success: true });
+}
+
+
+
+
 async function getAppliedMigrationVersions(env, databaseId) {
   try {
     const result = await runCloudflareD1Query(
@@ -6096,6 +6381,18 @@ async function handleRequest(request, env,ctx) {
   if (publishMinutesMatch &&  request.method === "POST") { return publishMeetingMinutes(request,env,publishMinutesMatch[1]);}
   const publicMinutesMatch = url.pathname.match(/^\/api\/public-minutes\/([^/]+)$/);
   if (publicMinutesMatch &&  request.method === "GET") { return getPublicMinutes(request,env,publicMinutesMatch[1]);}
+  if (url.pathname === "/api/public/guests" && request.method === "POST") {  return createPublicGuest(request, env);}
+  if (url.pathname === "/api/guests" && request.method === "GET") { return listGuests(request, env);}
+  if (url.pathname === "/api/guests" && request.method === "POST") { return createGuest(request, env);}
+  const guestMatch = url.pathname.match(/^\/api\/guests\/([^/]+)$/);
+  if (guestMatch && request.method === "GET") { return getGuest360(request, env, guestMatch[1]);}
+  if (guestMatch && request.method === "PUT") { return updateGuest(request, env, guestMatch[1]);}
+  const guestArchiveMatch = url.pathname.match(/^\/api\/guests\/([^/]+)\/archive$/);
+  if (guestArchiveMatch && request.method === "POST") { return updateGuestStatus(request, env, guestArchiveMatch[1], "ARCHIVED");}
+  const guestReinstateMatch = url.pathname.match(/^\/api\/guests\/([^/]+)\/reinstate$/);
+  if (guestReinstateMatch && request.method === "POST") { return updateGuestStatus(request, env, guestReinstateMatch[1], "ACTIVE");}
+
+
   
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
