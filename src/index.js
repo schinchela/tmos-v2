@@ -724,10 +724,24 @@ async function applyMigration025(env, databaseId) {
           email TEXT,
           phone TEXT,
           organization TEXT,
+
           guest_status TEXT NOT NULL DEFAULT 'ACTIVE',
+
+          first_time_toastmasters TEXT,
+          visit_purpose TEXT,
+          heard_from TEXT,
+
+          referral_type TEXT,
+          referred_member_id TEXT,
+          referred_member_name TEXT,
+          other_toastmaster_name TEXT,
+          other_toastmaster_club TEXT,
+          referral_name TEXT,
+
           first_seen_at TEXT,
           last_seen_at TEXT,
           notes TEXT,
+
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )
@@ -739,6 +753,10 @@ async function applyMigration025(env, databaseId) {
       `
         CREATE INDEX IF NOT EXISTS idx_guests_status
         ON guests(guest_status)
+      `,
+      `
+        CREATE INDEX IF NOT EXISTS idx_guests_referred_member
+        ON guests(referred_member_id)
       `,
       `
         CREATE TABLE IF NOT EXISTS guest_attendance (
@@ -782,8 +800,32 @@ async function applyMigration025(env, databaseId) {
       `
     ]
   );
-}
 
+  await ensureColumns(
+    env,
+    databaseId,
+    "guests",
+    [
+      ["first_time_toastmasters", "TEXT"],
+      ["visit_purpose", "TEXT"],
+      ["heard_from", "TEXT"],
+      ["referral_type", "TEXT"],
+      ["referred_member_id", "TEXT"],
+      ["referred_member_name", "TEXT"],
+      ["other_toastmaster_name", "TEXT"],
+      ["other_toastmaster_club", "TEXT"],
+      ["referral_name", "TEXT"]
+    ]
+  );
+
+  await ensureIndex(
+    env,
+    databaseId,
+    "idx_guests_referred_member",
+    "guests",
+    "referred_member_id"
+  );
+}
 
 
 async function applyMigration026(env, databaseId) {
@@ -5165,7 +5207,19 @@ async function upsertGuestInClub(env, clubId, payload) {
   const phone = String(payload.phone || "").trim();
   const organization = String(payload.organization || "").trim();
   const notes = String(payload.notes || "").trim();
+  const firstTimeToastmasters = String(payload.firstTimeToastmasters || "").trim();
+const visitPurpose = String(payload.visitPurpose || "").trim();
 
+const heardFrom = Array.isArray(payload.heardFrom)
+  ? payload.heardFrom.join(", ")
+  : String(payload.heardFrom || "").trim();
+
+const referralType = String(payload.referralType || "").trim();
+const referredMemberId = String(payload.referredMemberId || "").trim();
+const referredMemberName = String(payload.referredMemberName || "").trim();
+const otherToastmasterName = String(payload.otherToastmasterName || "").trim();
+const otherToastmasterClub = String(payload.otherToastmasterClub || "").trim();
+const referralName = String(payload.referralName || "").trim();
   if (!displayName) {
     return {
       ok: false,
@@ -5456,7 +5510,45 @@ async function listPublicClubs(env) {
   });
 }
 
+async function listPublicClubMembers(env, clubId) {
+  const result = await executeClubQuery(
+    env,
+    clubId,
+    `
+      SELECT
+        id,
+        first_name,
+        last_name,
+        display_name,
+        recognition_suffix,
+        email
+      FROM members
+      WHERE membership_status = 'ACTIVE'
+      ORDER BY first_name ASC, last_name ASC
+    `
+  );
 
+  const members =
+    result?.[0]?.results ||
+    result?.results ||
+    [];
+
+  return json({
+    success: true,
+    data: members.map((member) => {
+      const baseName =
+        member.display_name ||
+        `${member.first_name || ""} ${member.last_name || ""}`.trim();
+
+      return {
+        id: member.id,
+        display_name: member.recognition_suffix
+          ? `${baseName}, ${member.recognition_suffix}`
+          : baseName
+      };
+    })
+  });
+}
 
 async function getAppliedMigrationVersions(env, databaseId) {
   try {
@@ -6412,7 +6504,8 @@ async function handleRequest(request, env,ctx) {
   const guestReinstateMatch = url.pathname.match(/^\/api\/guests\/([^/]+)\/reinstate$/);
   if (guestReinstateMatch && request.method === "POST") { return updateGuestStatus(request, env, guestReinstateMatch[1], "ACTIVE");}
   if (url.pathname === "/api/public/clubs" && request.method === "GET") {  return listPublicClubs(env);}
-
+  const publicClubMembersMatch = url.pathname.match(/^\/api\/public\/clubs\/([^/]+)\/members$/);
+  if (publicClubMembersMatch && request.method === "GET") { return listPublicClubMembers(env, publicClubMembersMatch[1]);}
   
   
   if (url.pathname === "/api/platform/stats" && request.method === "GET") return getPlatformStats(env);
