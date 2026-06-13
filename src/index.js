@@ -5436,6 +5436,26 @@ async function updateGuestStatus(request, env, guestId, status) {
 }
 
 
+async function listPublicClubs(env) {
+  const result = await env.DB.prepare(`
+    SELECT
+      id,
+      name,
+      city,
+      country,
+      meeting_day,
+      meeting_time
+    FROM clubs
+    WHERE status = 'ACTIVE'
+    ORDER BY name ASC
+  `).all();
+
+  return json({
+    success: true,
+    data: result.results || []
+  });
+}
+
 
 
 async function getAppliedMigrationVersions(env, databaseId) {
@@ -6391,7 +6411,7 @@ async function handleRequest(request, env,ctx) {
   if (guestArchiveMatch && request.method === "POST") { return updateGuestStatus(request, env, guestArchiveMatch[1], "ARCHIVED");}
   const guestReinstateMatch = url.pathname.match(/^\/api\/guests\/([^/]+)\/reinstate$/);
   if (guestReinstateMatch && request.method === "POST") { return updateGuestStatus(request, env, guestReinstateMatch[1], "ACTIVE");}
-
+  if (url.pathname === "/api/public/clubs" && request.method === "GET") {  return listPublicClubs(env);}
 
   
   
