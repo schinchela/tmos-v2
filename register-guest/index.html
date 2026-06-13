@@ -11,7 +11,7 @@
     <section class="hero">
       <p class="eyebrow">Toastmasters Guest Registration</p>
       <h3>Welcome, Guest</h3>
-      <p>Select your club first, then complete the guest registration form.</p>
+      <p>Select your club first, then complete the form.</p>
     </section>
 
     <section class="module-panel">
@@ -48,9 +48,90 @@
             </label>
 
             <label>
-              Notes
-              <input name="notes" placeholder="How did you hear about us?" />
+              Is this your first Toastmasters meeting?
+              <select name="firstTimeToastmasters">
+                <option value="">Please Select</option>
+                <option value="YES">Yes</option>
+                <option value="NO">No</option>
+              </select>
             </label>
+
+            <label>
+              Why are you attending today?
+              <select name="visitPurpose">
+                <option value="">Please Select</option>
+                <option value="EXPLORING_MEMBERSHIP">Exploring Toastmasters Membership</option>
+                <option value="VISITING_TOASTMASTER">Visiting Toastmaster</option>
+                <option value="GUEST_OF_MEMBER">Guest of a Club Member</option>
+                <option value="CONTEST_OR_EVENT">Contest / Special Event</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="module-panel">
+            <div class="panel-header">
+              <h3>How did you hear about Toastmasters?</h3>
+            </div>
+
+            <div class="form-grid">
+              <label><input type="checkbox" name="heardFrom" value="Friend" /> Friend</label>
+              <label><input type="checkbox" name="heardFrom" value="Family" /> Family</label>
+              <label><input type="checkbox" name="heardFrom" value="Colleague" /> Colleague</label>
+              <label><input type="checkbox" name="heardFrom" value="LinkedIn" /> LinkedIn</label>
+              <label><input type="checkbox" name="heardFrom" value="Facebook" /> Facebook</label>
+              <label><input type="checkbox" name="heardFrom" value="Instagram" /> Instagram</label>
+              <label><input type="checkbox" name="heardFrom" value="Google Search" /> Google Search</label>
+              <label><input type="checkbox" name="heardFrom" value="Toastmasters Website" /> Toastmasters Website</label>
+              <label><input type="checkbox" name="heardFrom" value="Club Website" /> Club Website</label>
+              <label><input type="checkbox" name="heardFrom" value="Other" /> Other</label>
+            </div>
+          </div>
+
+          <div class="module-panel">
+            <div class="panel-header">
+              <h3>Referral</h3>
+            </div>
+
+            <div class="form-grid">
+              <label>
+                Who referred you?
+                <select name="referralType" id="referralType">
+                  <option value="">Please Select</option>
+                  <option value="CLUB_MEMBER">Member of this Club</option>
+                  <option value="OTHER_TOASTMASTER">Other Toastmaster</option>
+                  <option value="NON_TOASTMASTER">Friend / Family / Colleague</option>
+                  <option value="NONE">No Referral</option>
+                </select>
+              </label>
+
+              <label id="clubMemberReferralWrap" style="display:none;">
+                Select Club Member
+                <select name="referredMemberId" id="referredMemberId">
+                  <option value="">Select member</option>
+                </select>
+              </label>
+
+              <label id="otherToastmasterNameWrap" style="display:none;">
+                Toastmaster Name
+                <input name="otherToastmasterName" />
+              </label>
+
+              <label id="otherToastmasterClubWrap" style="display:none;">
+                Toastmaster Club
+                <input name="otherToastmasterClub" />
+              </label>
+
+              <label id="nonToastmasterReferralWrap" style="display:none;">
+                Referrer Name
+                <input name="referralName" />
+              </label>
+
+              <label>
+                Notes
+                <input name="notes" placeholder="Anything you would like us to know?" />
+              </label>
+            </div>
           </div>
 
           <button class="primary-btn" id="submitGuestBtn" type="submit">
@@ -71,6 +152,38 @@
     const button = document.getElementById("submitGuestBtn");
     const clubSelect = document.getElementById("clubSelect");
     const guestFields = document.getElementById("guestFields");
+
+    const referralType = document.getElementById("referralType");
+    const referredMemberId = document.getElementById("referredMemberId");
+
+    const clubMemberReferralWrap = document.getElementById("clubMemberReferralWrap");
+    const otherToastmasterNameWrap = document.getElementById("otherToastmasterNameWrap");
+    const otherToastmasterClubWrap = document.getElementById("otherToastmasterClubWrap");
+    const nonToastmasterReferralWrap = document.getElementById("nonToastmasterReferralWrap");
+
+    function hideReferralFields() {
+      clubMemberReferralWrap.style.display = "none";
+      otherToastmasterNameWrap.style.display = "none";
+      otherToastmasterClubWrap.style.display = "none";
+      nonToastmasterReferralWrap.style.display = "none";
+    }
+
+    function updateReferralFields() {
+      hideReferralFields();
+
+      if (referralType.value === "CLUB_MEMBER") {
+        clubMemberReferralWrap.style.display = "block";
+      }
+
+      if (referralType.value === "OTHER_TOASTMASTER") {
+        otherToastmasterNameWrap.style.display = "block";
+        otherToastmasterClubWrap.style.display = "block";
+      }
+
+      if (referralType.value === "NON_TOASTMASTER") {
+        nonToastmasterReferralWrap.style.display = "block";
+      }
+    }
 
     async function loadClubs() {
       try {
@@ -95,14 +208,58 @@
       }
     }
 
-    clubSelect.addEventListener("change", () => {
-      guestFields.style.display = clubSelect.value ? "block" : "none";
+    async function loadClubMembers(clubId) {
+      referredMemberId.innerHTML = `<option value="">Loading members...</option>`;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/public/clubs/${clubId}/members`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Could not load members.");
+        }
+
+        referredMemberId.innerHTML = `
+          <option value="">Select member</option>
+          ${(data.data || []).map((member) => `
+            <option
+              value="${member.id}"
+              data-name="${member.display_name}"
+            >
+              ${member.display_name}
+            </option>
+          `).join("")}
+        `;
+      } catch (error) {
+        referredMemberId.innerHTML = `<option value="">Failed to load members</option>`;
+      }
+    }
+
+    clubSelect.addEventListener("change", async () => {
+      const clubId = clubSelect.value;
+
+      guestFields.style.display = clubId ? "block" : "none";
+
+      if (clubId) {
+        await loadClubMembers(clubId);
+      }
     });
+
+    referralType.addEventListener("change", updateReferralFields);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
-      const payload = Object.fromEntries(new FormData(form).entries());
+      const formData = new FormData(form);
+      const payload = Object.fromEntries(formData.entries());
+
+      payload.heardFrom = formData.getAll("heardFrom");
+
+      const selectedMemberOption =
+        referredMemberId.options[referredMemberId.selectedIndex];
+
+      payload.referredMemberName =
+        selectedMemberOption?.dataset?.name || "";
 
       message.textContent = "Registering...";
       button.disabled = true;
@@ -121,9 +278,13 @@
         }
 
         const selectedClubId = clubSelect.value;
+
         form.reset();
         clubSelect.value = selectedClubId;
         guestFields.style.display = "block";
+        hideReferralFields();
+
+        await loadClubMembers(selectedClubId);
 
         message.textContent = "Thank you. You have been registered as a guest.";
       } catch (error) {
@@ -133,6 +294,7 @@
       }
     });
 
+    hideReferralFields();
     loadClubs();
   </script>
 </body>
