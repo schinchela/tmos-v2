@@ -50,6 +50,11 @@ import {
   initClubGuests
 } from "../../modules/club/guests.js";
 
+import { 
+  renderGuestDetails, 
+  initGuestDetails 
+} from "../../modules/club/guest-details.js";
+
 import {
   renderClubEducation,
   initClubEducation
@@ -117,11 +122,15 @@ const routes = {
   render: () => renderMeetingDetails(window.TMOS_SELECTED_MEETING_ID),
   init: initMeetingDetails
   },
-  "club-guests": {
-    title: "Guests",
-    render: renderClubGuests,
-    init: initClubGuests
-  },
+  "guests": {
+  render: renderClubGuests,
+  init: initClubGuests
+},
+
+"guests-details": {
+  render: () => renderGuestDetails(window.TMOS_SELECTED_GUEST_ID),
+  init: initGuestDetails
+},
   "club-education": {
     title: "Education",
     render: renderClubEducation,
