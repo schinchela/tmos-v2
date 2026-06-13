@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Guest Registration | TMOS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/assets/css/app.css" />
+</head>
+<body>
+  <main class="content">
+    <section class="hero">
+      <p class="eyebrow">Toastmasters Guest Registration</p>
+      <h3>Welcome, Guest</h3>
+      <p>Select your club first, then complete the guest registration form.</p>
+    </section>
+
+    <section class="module-panel">
+      <form class="enterprise-form" id="guestForm">
+        <div class="form-grid">
+          <label>
+            Select Club
+            <select name="clubId" id="clubSelect" required>
+              <option value="">Loading clubs...</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="guestFields" style="display:none;">
+          <div class="form-grid">
+            <label>
+              Full Name
+              <input name="displayName" required />
+            </label>
+
+            <label>
+              Email
+              <input name="email" type="email" />
+            </label>
+
+            <label>
+              Phone
+              <input name="phone" />
+            </label>
+
+            <label>
+              Organization
+              <input name="organization" />
+            </label>
+
+            <label>
+              Notes
+              <input name="notes" placeholder="How did you hear about us?" />
+            </label>
+          </div>
+
+          <button class="primary-btn" id="submitGuestBtn" type="submit">
+            Register as Guest
+          </button>
+        </div>
+
+        <p class="form-message" id="guestMessage"></p>
+      </form>
+    </section>
+  </main>
+
+  <script type="module">
+    const API_BASE = "https://tmos.rowepal.com";
+
+    const form = document.getElementById("guestForm");
+    const message = document.getElementById("guestMessage");
+    const button = document.getElementById("submitGuestBtn");
+    const clubSelect = document.getElementById("clubSelect");
+    const guestFields = document.getElementById("guestFields");
+
+    async function loadClubs() {
+      try {
+        const response = await fetch(`${API_BASE}/api/public/clubs`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Could not load clubs.");
+        }
+
+        clubSelect.innerHTML = `
+          <option value="">Select your club</option>
+          ${(data.data || []).map((club) => `
+            <option value="${club.id}">
+              ${club.name}${club.city ? ` — ${club.city}` : ""}
+            </option>
+          `).join("")}
+        `;
+      } catch (error) {
+        clubSelect.innerHTML = `<option value="">Failed to load clubs</option>`;
+        message.textContent = error.message;
+      }
+    }
+
+    clubSelect.addEventListener("change", () => {
+      guestFields.style.display = clubSelect.value ? "block" : "none";
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const payload = Object.fromEntries(new FormData(form).entries());
+
+      message.textContent = "Registering...";
+      button.disabled = true;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/public/guests`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || "Registration failed.");
+        }
+
+        const selectedClubId = clubSelect.value;
+        form.reset();
+        clubSelect.value = selectedClubId;
+        guestFields.style.display = "block";
+
+        message.textContent = "Thank you. You have been registered as a guest.";
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    loadClubs();
+  </script>
+</body>
+</html>
