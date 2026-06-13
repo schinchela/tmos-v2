@@ -738,6 +738,8 @@ async function applyMigration025(env, databaseId) {
           other_toastmaster_club TEXT,
           referral_name TEXT,
 
+          visit_count INTEGER NOT NULL DEFAULT 1,
+
           first_seen_at TEXT,
           last_seen_at TEXT,
           notes TEXT,
@@ -814,7 +816,8 @@ async function applyMigration025(env, databaseId) {
       ["referred_member_name", "TEXT"],
       ["other_toastmaster_name", "TEXT"],
       ["other_toastmaster_club", "TEXT"],
-      ["referral_name", "TEXT"]
+      ["referral_name", "TEXT"],
+      ["visit_count", "INTEGER NOT NULL DEFAULT 1"]
     ]
   );
 
@@ -5202,28 +5205,63 @@ function normalizeEmail(value) {
 async function upsertGuestInClub(env, clubId, payload) {
   const timestamp = now();
 
-  const displayName = String(payload.displayName || payload.display_name || "").trim();
+  const displayName = String(
+    payload.displayName ||
+    payload.display_name ||
+    ""
+  ).trim();
+
   const email = normalizeEmail(payload.email);
   const phone = String(payload.phone || "").trim();
   const organization = String(payload.organization || "").trim();
   const notes = String(payload.notes || "").trim();
-  const firstTimeToastmasters = String(payload.firstTimeToastmasters || "").trim();
-const visitPurpose = String(payload.visitPurpose || "").trim();
 
-const heardFrom = Array.isArray(payload.heardFrom)
-  ? payload.heardFrom.join(", ")
-  : String(payload.heardFrom || "").trim();
+  const firstTimeToastmasters = String(
+    payload.firstTimeToastmasters || ""
+  ).trim();
 
-const referralType = String(payload.referralType || "").trim();
-const referredMemberId = String(payload.referredMemberId || "").trim();
-const referredMemberName = String(payload.referredMemberName || "").trim();
-const otherToastmasterName = String(payload.otherToastmasterName || "").trim();
-const otherToastmasterClub = String(payload.otherToastmasterClub || "").trim();
-const referralName = String(payload.referralName || "").trim();
+  const visitPurpose = String(
+    payload.visitPurpose || ""
+  ).trim();
+
+  const heardFrom = Array.isArray(payload.heardFrom)
+    ? payload.heardFrom.join(", ")
+    : String(payload.heardFrom || "").trim();
+
+  const referralType = String(
+    payload.referralType || ""
+  ).trim();
+
+  const referredMemberId = String(
+    payload.referredMemberId || ""
+  ).trim();
+
+  const referredMemberName = String(
+    payload.referredMemberName || ""
+  ).trim();
+
+  const otherToastmasterName = String(
+    payload.otherToastmasterName || ""
+  ).trim();
+
+  const otherToastmasterClub = String(
+    payload.otherToastmasterClub || ""
+  ).trim();
+
+  const referralName = String(
+    payload.referralName || ""
+  ).trim();
+
   if (!displayName) {
     return {
       ok: false,
-      response: json({ success: false, error: "Guest name is required." }, 400)
+      response: json(
+        {
+          success: false,
+          error: "Guest name is required."
+        },
+        400
+      )
     };
   }
 
@@ -5257,13 +5295,31 @@ const referralName = String(payload.referralName || "").trim();
           display_name = ${sqlValue(displayName)},
           phone = ${sqlValue(phone)},
           organization = ${sqlValue(organization)},
+
+          first_time_toastmasters = ${sqlValue(firstTimeToastmasters)},
+          visit_purpose = ${sqlValue(visitPurpose)},
+          heard_from = ${sqlValue(heardFrom)},
+
+          referral_type = ${sqlValue(referralType)},
+          referred_member_id = ${sqlValue(referredMemberId)},
+          referred_member_name = ${sqlValue(referredMemberName)},
+          other_toastmaster_name = ${sqlValue(otherToastmasterName)},
+          other_toastmaster_club = ${sqlValue(otherToastmasterClub)},
+          referral_name = ${sqlValue(referralName)},
+
+          visit_count = COALESCE(visit_count, 0) + 1,
+
           guest_status = CASE
-            WHEN guest_status = 'ARCHIVED' THEN 'ACTIVE'
+            WHEN guest_status = 'ARCHIVED'
+            THEN 'ACTIVE'
             ELSE guest_status
           END,
-          last_seen_at = COALESCE(last_seen_at, ${sqlValue(timestamp)}),
-          notes = ${sqlValue(notes || existing.notes || "")},
+
+          notes = ${sqlValue(notes)},
+
+          last_seen_at = ${sqlValue(timestamp)},
           updated_at = ${sqlValue(timestamp)}
+
         WHERE id = ${sqlValue(existing.id)}
       `
     );
@@ -5287,10 +5343,26 @@ const referralName = String(payload.referralName || "").trim();
         email,
         phone,
         organization,
+
         guest_status,
+
+        first_time_toastmasters,
+        visit_purpose,
+        heard_from,
+
+        referral_type,
+        referred_member_id,
+        referred_member_name,
+        other_toastmaster_name,
+        other_toastmaster_club,
+        referral_name,
+
+        visit_count,
+
         first_seen_at,
         last_seen_at,
         notes,
+
         created_at,
         updated_at
       )
@@ -5300,10 +5372,26 @@ const referralName = String(payload.referralName || "").trim();
         ${sqlValue(email)},
         ${sqlValue(phone)},
         ${sqlValue(organization)},
+
         'ACTIVE',
+
+        ${sqlValue(firstTimeToastmasters)},
+        ${sqlValue(visitPurpose)},
+        ${sqlValue(heardFrom)},
+
+        ${sqlValue(referralType)},
+        ${sqlValue(referredMemberId)},
+        ${sqlValue(referredMemberName)},
+        ${sqlValue(otherToastmasterName)},
+        ${sqlValue(otherToastmasterClub)},
+        ${sqlValue(referralName)},
+
+        1,
+
         ${sqlValue(timestamp)},
         ${sqlValue(timestamp)},
         ${sqlValue(notes)},
+
         ${sqlValue(timestamp)},
         ${sqlValue(timestamp)}
       )
