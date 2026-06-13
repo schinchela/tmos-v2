@@ -372,11 +372,11 @@ const CLUB_MIGRATIONS = [
     `CREATE INDEX IF NOT EXISTS idx_club_configuration_active
      ON club_configuration(is_active)`,
 
-    `INSERT OR IGNORE INTO club_configuration (
+        `INSERT OR IGNORE INTO club_configuration (
       id, config_group, config_type, config_key, config_name,
       config_value_json, is_active, sort_order, created_at, updated_at
     ) VALUES
-      ('cfg_role_toastmaster', 'MEETINGS', 'MEETING_ROLE', 'TOASTMASTER', 'Toastmaster', '{}', 1, 10, datetime('now'), datetime('now')),
+      ('cfg_role_toastmaster', 'MEETINGS', 'MEETING_ROLE', 'TOASTMASTER', 'Toastmaster of the Day', '{}', 1, 10, datetime('now'), datetime('now')),
       ('cfg_role_ge', 'MEETINGS', 'MEETING_ROLE', 'GENERAL_EVALUATOR', 'General Evaluator', '{}', 1, 20, datetime('now'), datetime('now')),
       ('cfg_role_timer', 'MEETINGS', 'MEETING_ROLE', 'TIMER', 'Timer', '{}', 1, 30, datetime('now'), datetime('now')),
       ('cfg_role_ah_counter', 'MEETINGS', 'MEETING_ROLE', 'AH_COUNTER', 'Ah Counter', '{}', 1, 40, datetime('now'), datetime('now')),
@@ -385,7 +385,7 @@ const CLUB_MIGRATIONS = [
       ('cfg_role_quiz_master', 'MEETINGS', 'MEETING_ROLE', 'QUIZ_MASTER', 'Quiz Master', '{}', 1, 70, datetime('now'), datetime('now')),
       ('cfg_role_invocation', 'MEETINGS', 'MEETING_ROLE', 'INVOCATION', 'Invocation', '{}', 1, 80, datetime('now'), datetime('now')),
       ('cfg_role_saa', 'MEETINGS', 'MEETING_ROLE', 'SERGEANT_AT_ARMS', 'Sergeant At Arms', '{}', 1, 90, datetime('now'), datetime('now')),
-      ('cfg_role_tech_master', 'MEETINGS', 'MEETING_ROLE', 'TECH_MASTER', 'Tech Master', '{}', 1, 100, datetime('now'), datetime('now'))`,
+      ('cfg_role_tech_master', 'MEETINGS', 'MEETING_ROLE', 'TECH_MASTER', 'Tech Master', '{}', 1, 100, datetime('now'), datetime('now')),
       ('cfg_role_active_listener', 'MEETINGS', 'MEETING_ROLE', 'ACTIVE_LISTENER', 'Active Listener', '{}', 1, 110, datetime('now'), datetime('now')),
       ('cfg_role_table_topics_evaluator', 'MEETINGS', 'MEETING_ROLE', 'TABLE_TOPICS_EVALUATOR', 'Table Topics Evaluator', '{}', 1, 120, datetime('now'), datetime('now'))`,
 
