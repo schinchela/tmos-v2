@@ -122,12 +122,12 @@ const routes = {
   render: () => renderMeetingDetails(window.TMOS_SELECTED_MEETING_ID),
   init: initMeetingDetails
   },
-  "guests": {
+  "club-guests": {
   render: renderClubGuests,
   init: initClubGuests
 },
 
-"guests-details": {
+"club-guest-details": {
   render: () => renderGuestDetails(window.TMOS_SELECTED_GUEST_ID),
   init: initGuestDetails
 },
