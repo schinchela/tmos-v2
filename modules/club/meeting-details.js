@@ -1814,6 +1814,25 @@ function bindAgendaRoleEvents() {
     const roleSelect = document.getElementById("agendaRoleSelect");
 
     const selectedRole = roleSelect.selectedOptions?.[0];
+    const plannedSpeechCount =
+  meetingData?.speeches?.filter(
+    speech => speech.speech_status !== "CANCELLED"
+  ).length || 0;
+
+const speechEvaluatorCount =
+  meetingData?.roles?.filter(
+    role => role.role_code === "SPEECH_EVALUATOR"
+  ).length || 0;
+
+if (
+  roleSelect.value === "SPEECH_EVALUATOR" &&
+  speechEvaluatorCount >= plannedSpeechCount
+) {
+  message.textContent =
+    `Only ${plannedSpeechCount} Speech Evaluator(s) allowed.`;
+
+  return;
+}
     const sourceType = agendaRoleSourceType.value;
 
     let plannedParticipantId = "";
