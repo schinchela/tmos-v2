@@ -2654,7 +2654,42 @@ const editable = await assertMeetingEditable(
 
 if (!editable.ok) return editable.response;
   const body = await request.json();
+  if (body.roleCode === "SPEECH_EVALUATOR") {
+  const speechCountResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT COUNT(*) AS total
+      FROM meeting_speeches
+      WHERE meeting_id = ${sqlValue(meetingId)}
+        AND speech_status != 'CANCELLED'
+    `
+  );
 
+  const evaluatorCountResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT COUNT(*) AS total
+      FROM meeting_role_assignments
+      WHERE meeting_id = ${sqlValue(meetingId)}
+        AND role_code = 'SPEECH_EVALUATOR'
+    `
+  );
+
+  const plannedSpeeches =
+    Number((speechCountResult?.[0]?.results || speechCountResult?.results || [])[0]?.total || 0);
+
+  const existingEvaluators =
+    Number((evaluatorCountResult?.[0]?.results || evaluatorCountResult?.results || [])[0]?.total || 0);
+
+  if (existingEvaluators >= plannedSpeeches) {
+    return json({
+      success: false,
+      error: `Only ${plannedSpeeches} Speech Evaluator role(s) allowed because there are ${plannedSpeeches} planned speech(es).`
+    }, 400);
+  }
+}
   const roleId = id("role");
   const timestamp = now();
   const existingRoleResult = await executeClubQuery(
