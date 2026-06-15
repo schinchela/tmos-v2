@@ -910,6 +910,37 @@ async function applyMigration028(env, databaseId) {
   );
 }
 
+async function applyMigration029(env, databaseId) {
+  await runCloudflareD1Batch(env, databaseId, [
+    `
+      INSERT OR IGNORE INTO club_configuration (
+        id, config_group, config_type, config_key, config_name,
+        config_value_json, is_active, sort_order, created_at, updated_at
+      )
+      VALUES (
+        'cfg_role_speech_evaluator',
+        'MEETINGS',
+        'MEETING_ROLE',
+        'SPEECH_EVALUATOR',
+        'Speech Evaluator',
+        '{}',
+        1,
+        65,
+        datetime('now'),
+        datetime('now')
+      )
+    `,
+    `
+      UPDATE club_configuration
+      SET
+        config_value_json = '{"candidateSource":"ROLES","allowedRoleCodes":["SPEECH_EVALUATOR"]}',
+        updated_at = datetime('now')
+      WHERE config_type = 'MEETING_AWARD'
+        AND config_key = 'BEST_EVALUATOR'
+    `
+  ]);
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -5748,7 +5779,12 @@ async function runClubMigrations(env, databaseId) {
      {
   version: "028_public_minutes",
   apply: applyMigration028
-}
+},
+
+     {
+  version: "029_speech_evaluator_award_role",
+  apply: applyMigration029},
+    
   ];
  
 
