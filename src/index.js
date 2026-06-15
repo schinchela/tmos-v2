@@ -2709,12 +2709,40 @@ const existingRoleRows =
   existingRoleResult?.results ||
   [];
 
-if (existingRoleRows.length) {
+if (
+  existingRoleRows.length &&
+  body.roleCode !== "SPEECH_EVALUATOR"
+) {
   return json({
     success: false,
     error: "This role is already planned for this meeting"
   }, 409);
 }
+
+  if (body.roleCode === "SPEECH_EVALUATOR") {
+  const speechCountResult = await executeClubQuery(
+    env,
+    auth.user.club_id,
+    `
+      SELECT COUNT(*) AS total
+      FROM meeting_speeches
+      WHERE meeting_id = ${sqlValue(meetingId)}
+        AND speech_status != 'CANCELLED'
+    `
+  );
+
+  const plannedSpeeches = Number(
+    (speechCountResult?.[0]?.results || speechCountResult?.results || [])[0]?.total || 0
+  );
+
+  if (existingRoleRows.length >= plannedSpeeches) {
+    return json({
+      success: false,
+      error: `Only ${plannedSpeeches} Speech Evaluator role(s) allowed because there are ${plannedSpeeches} planned speech(es).`
+    }, 400);
+  }
+}
+  
   await executeClubStatement(
     env,
     auth.user.club_id,
