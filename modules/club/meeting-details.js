@@ -2239,15 +2239,15 @@ function bindAwardEvents() {
       const currentlyExcluded = Number(button.dataset.currentExcluded || 0) === 1;
 
       try {
-        await apiRequest(
-          `/api/meetings/${currentMeetingId}/award-candidates/${candidateId}/toggle`,
-          {
-            method: "POST",
-            body: {
-              isExcluded: currentlyExcluded ? 0 : 1
-            }
-          }
-        );
+       await apiRequest(
+  `/api/meetings/${currentMeetingId}/award-candidates/${candidateId}`,
+  {
+    method: "PUT",
+    body: {
+      isExcluded: currentlyExcluded ? 0 : 1
+    }
+  }
+);
 
         window.__keepMeetingScroll = true;
         await loadMeetingDetails();
