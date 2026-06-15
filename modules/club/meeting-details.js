@@ -227,12 +227,35 @@ function activeMeetingRoles() {
 
 function renderAgendaRolesPanel(roles) {
   const plannedRoleCodes = new Set(
-    roles.map((role) => role.role_code)
-  );
+  roles
+    .filter(
+      role => role.role_code !== "SPEECH_EVALUATOR"
+    )
+    .map(
+      role => role.role_code
+    )
+);
+  const plannedSpeechCount =
+    meetingData?.speeches?.filter(
+      speech => speech.speech_status !== "CANCELLED"
+    ).length || 0;
 
-  const configRoles = activeMeetingRoles().filter(
-    (role) => !plannedRoleCodes.has(role.config_key)
-  );
+  const speechEvaluatorCount =
+    roles.filter(
+      role => role.role_code === "SPEECH_EVALUATOR"
+    ).length;
+
+  const speechEvaluatorLimitReached =
+    speechEvaluatorCount >= plannedSpeechCount;
+
+  const configRoles = activeMeetingRoles().filter((role) => {
+
+  if (role.config_key === "SPEECH_EVALUATOR") {
+    return !speechEvaluatorLimitReached;
+  }
+
+  return !plannedRoleCodes.has(role.config_key);
+});
 
   const availableMembers = attendanceSources.members;
   const availableGuests = attendanceSources.guests;
@@ -241,7 +264,13 @@ function renderAgendaRolesPanel(roles) {
     <section class="module-panel">
       <div class="panel-header">
         <h3>Agenda & Roles</h3>
-        <span class="badge">${roles.length} Planned</span>
+        <span class="badge">
+  ${roles.length} Planned
+</span>
+
+<span class="badge">
+  Evaluators ${speechEvaluatorCount}/${plannedSpeechCount}
+</span>
       </div>
 
       <form class="enterprise-form" id="addAgendaRoleForm">
