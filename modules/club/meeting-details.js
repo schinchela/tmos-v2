@@ -2283,7 +2283,7 @@ function bindAwardEvents() {
     }
 
     try {
-      await apiRequest(`/api/meetings/${currentMeetingId}/awards/finalize`, {
+      await apiRequest(`/api/meetings/${currentMeetingId}/voting/finalize`, {
         method: "POST",
         body: {
           awards: selectedAwards
