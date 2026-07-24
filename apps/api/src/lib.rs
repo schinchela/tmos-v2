@@ -22,6 +22,10 @@ async fn route_request(request: &Request, env: &Env, context: &RequestContext) -
             modules::database_health::schema(context, env).await
         }
 
+        (Method::Get, "/api/platform/inventory") => {
+            modules::platform::routes::inventory(context, env).await
+        }
+
         _ => shared::api_response::error(
             context,
             ApiError::not_found(
