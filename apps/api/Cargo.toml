@@ -1,0 +1,23 @@
+[package]
+name = "tmos-api"
+version = "0.1.0"
+edition = "2021"
+authors = ["schinchela <suketh.chinchela@gmail.com>"]
+description = "TMOS Rust API for Cloudflare Workers"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+js-sys = "=0.3.99"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "=0.2.122"
+worker = { version = "=0.8.3", features = ["d1"] }
+worker-macros = "=0.8.3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

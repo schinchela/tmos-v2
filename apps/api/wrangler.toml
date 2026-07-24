@@ -1,0 +1,17 @@
+name = "tmos-v2-api-rust"
+main = "build/index.js"
+compatibility_date = "2026-07-24"
+workers_dev = true
+preview_urls = true
+
+[build]
+command = "cargo install -q \"worker-build@=0.8.3\" --locked && worker-build --release"
+
+[vars]
+APP_ENV = "development"
+ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://tmos.rowepal.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tmos-platform"
+database_id = "9579e68f-5abc-46aa-a380-b3ca52bec7fc"
