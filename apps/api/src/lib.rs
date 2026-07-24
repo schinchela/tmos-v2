@@ -6,7 +6,11 @@ use worker::{event, Context, Env, Method, Request, Response, Result};
 use shared::api_error::ApiError;
 use shared::request_context::RequestContext;
 
-async fn route_request(request: &Request, env: &Env, context: &RequestContext) -> Result<Response> {
+async fn route_request(
+    request: &mut Request,
+    env: &Env,
+    context: &RequestContext,
+) -> Result<Response> {
     let path = request.path();
 
     match (request.method(), path.as_str()) {
@@ -26,6 +30,14 @@ async fn route_request(request: &Request, env: &Env, context: &RequestContext) -
             modules::platform::routes::inventory(context, env).await
         }
 
+        (Method::Post, "/api/auth/login") => {
+            modules::auth::routes::login(request, context, env).await
+        }
+
+        (Method::Post, "/api/auth/logout") => {
+            modules::auth::routes::logout(request, context, env).await
+        }
+
         (Method::Get, "/api/auth/me") => modules::auth::routes::me(request, context, env).await,
 
         (Method::Get, "/api/club/context") => {
@@ -43,14 +55,14 @@ async fn route_request(request: &Request, env: &Env, context: &RequestContext) -
 }
 
 #[event(fetch)]
-async fn fetch(request: Request, env: Env, _ctx: Context) -> Result<Response> {
+async fn fetch(mut request: Request, env: Env, _ctx: Context) -> Result<Response> {
     let request_context = RequestContext::from_request(&request);
 
     if request.method() == Method::Options {
         return shared::cors::preflight(&request, &env);
     }
 
-    let response = match route_request(&request, &env, &request_context).await {
+    let response = match route_request(&mut request, &env, &request_context).await {
         Ok(response) => response,
 
         Err(error) => shared::api_response::error(&request_context, ApiError::from(error))?,

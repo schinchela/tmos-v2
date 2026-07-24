@@ -13,8 +13,24 @@ pub struct AuthenticatedUserRow {
     pub last_name: Option<String>,
     pub role: String,
     pub club_id: Option<String>,
-    pub status: String,
-    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LoginUserRow {
+    pub id: String,
+    pub email: String,
+    pub password_hash: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub role: String,
+    pub club_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -39,6 +55,31 @@ impl From<AuthenticatedUserRow> for AuthenticatedUser {
             club_id: row.club_id,
         }
     }
+}
+
+impl From<&LoginUserRow> for AuthenticatedUser {
+    fn from(row: &LoginUserRow) -> Self {
+        Self {
+            id: row.id.clone(),
+            email: row.email.clone(),
+            first_name: row.first_name.clone(),
+            last_name: row.last_name.clone(),
+            role: row.role.clone(),
+            club_id: row.club_id.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginResponse {
+    pub token: String,
+    pub user: AuthenticatedUser,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LogoutResponse {
+    pub logged_out: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
