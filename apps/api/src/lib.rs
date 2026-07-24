@@ -26,6 +26,12 @@ async fn route_request(request: &Request, env: &Env, context: &RequestContext) -
             modules::platform::routes::inventory(context, env).await
         }
 
+        (Method::Get, "/api/auth/me") => modules::auth::routes::me(request, context, env).await,
+
+        (Method::Get, "/api/club/context") => {
+            modules::auth::routes::club_context(request, context, env).await
+        }
+
         _ => shared::api_response::error(
             context,
             ApiError::not_found(
