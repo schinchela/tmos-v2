@@ -48,6 +48,10 @@ async fn route_request(
             modules::club_database::routes::context(request, context, env).await
         }
 
+        (Method::Get, "/api/club/database-health") => {
+            modules::club_database::routes::database_health(request, context, env).await
+        }
+
         _ => shared::api_response::error(
             context,
             ApiError::not_found(

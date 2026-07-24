@@ -1,5 +1,6 @@
 use worker::{Env, Request, Response, Result};
 
+use crate::modules::club_database::health;
 use crate::modules::club_database::service::ClubDatabaseService;
 use crate::shared::api_response;
 use crate::shared::request_context::RequestContext;
@@ -14,4 +15,15 @@ pub async fn context(request: &Request, context: &RequestContext, env: &Env) -> 
     };
 
     response
+}
+
+pub async fn database_health(
+    request: &Request,
+    context: &RequestContext,
+    env: &Env,
+) -> Result<Response> {
+    match health::check(request, env).await {
+        Ok(data) => api_response::success(context, data),
+        Err(error) => api_response::error(context, error),
+    }
 }

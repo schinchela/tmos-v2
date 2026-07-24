@@ -2,7 +2,9 @@ use uuid::Uuid;
 use worker::{Env, Request};
 
 use crate::modules::auth::service::AuthService;
-use crate::modules::club_database::entities::{ClubDatabaseContext, ClubDatabaseMappingRow};
+use crate::modules::club_database::entities::{
+    ClubDatabaseContext, ClubDatabaseMappingRow, ResolvedClubDatabase,
+};
 use crate::modules::club_database::repository::ClubDatabaseRepository;
 use crate::shared::api_error::ApiError;
 use crate::shared::database::platform_database::PlatformDatabase;
@@ -25,6 +27,16 @@ impl ClubDatabaseService {
         request: &Request,
         env: &Env,
     ) -> Result<ClubDatabaseContext, ApiError> {
+        let resolved = self.resolve_internal_for_request(request, env).await?;
+
+        Ok(ClubDatabaseContext::from(&resolved))
+    }
+
+    pub async fn resolve_internal_for_request(
+        &self,
+        request: &Request,
+        env: &Env,
+    ) -> Result<ResolvedClubDatabase, ApiError> {
         let auth_service = AuthService::from_env(env)?;
         let user = auth_service.current_user(request).await?;
 
@@ -50,7 +62,7 @@ impl ClubDatabaseService {
     }
 }
 
-fn validate_mapping(mapping: ClubDatabaseMappingRow) -> Result<ClubDatabaseContext, ApiError> {
+fn validate_mapping(mapping: ClubDatabaseMappingRow) -> Result<ResolvedClubDatabase, ApiError> {
     if mapping.club_status != "ACTIVE" {
         return Err(ApiError::forbidden(
             "CLUB_DATABASE_CLUB_INACTIVE",
@@ -97,37 +109,29 @@ fn validate_mapping(mapping: ClubDatabaseMappingRow) -> Result<ClubDatabaseConte
         .database_identifier
         .as_deref()
         .map(str::trim)
-        .filter(|value| !value.is_empty());
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            ApiError::conflict(
+                "CLUB_DATABASE_IDENTIFIER_MISSING",
+                "The club database mapping has no database identifier.",
+            )
+        })?;
 
-    let identifier_present = identifier.is_some();
-    let identifier_valid = identifier
-        .and_then(|value| Uuid::parse_str(value).ok())
-        .is_some();
-
-    if !identifier_present {
-        return Err(ApiError::conflict(
-            "CLUB_DATABASE_IDENTIFIER_MISSING",
-            "The club database mapping has no database identifier.",
-        ));
-    }
-
-    if !identifier_valid {
+    if Uuid::parse_str(identifier).is_err() {
         return Err(ApiError::conflict(
             "CLUB_DATABASE_IDENTIFIER_INVALID",
             "The club database identifier is invalid.",
         ));
     }
 
-    Ok(ClubDatabaseContext {
+    Ok(ResolvedClubDatabase {
         club_id: mapping.club_id,
         club_name: mapping.club_name,
         club_slug: mapping.club_slug,
         club_status: mapping.club_status,
         database_name: mapped_database_name.to_string(),
+        database_identifier: identifier.to_string(),
         mapping_status: mapping_status.to_string(),
-        database_identifier_present: identifier_present,
-        database_identifier_valid: identifier_valid,
-        ready: true,
     })
 }
 
@@ -155,7 +159,7 @@ mod tests {
         let result = validate_mapping(valid_mapping());
 
         assert!(result.is_ok());
-        assert!(result.unwrap().ready);
+        assert_eq!(result.unwrap().database_name, "tmos-test");
     }
 
     #[test]
