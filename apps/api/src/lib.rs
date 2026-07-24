@@ -13,6 +13,12 @@ async fn route_request(
 ) -> Result<Response> {
     let path = request.path();
 
+    if request.method() == Method::Get {
+        if let Some(member_id) = modules::members::routes::member_id_from_path(&path) {
+            return modules::members::routes::detail(request, context, env, member_id).await;
+        }
+    }
+
     match (request.method(), path.as_str()) {
         (Method::Get, "/api/health") => modules::health::health(context),
 

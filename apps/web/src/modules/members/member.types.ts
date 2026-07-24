@@ -18,3 +18,5 @@ export interface MemberSummary {
   createdAt: string;
   updatedAt: string;
 }
+
+export type MemberProfile = MemberSummary;

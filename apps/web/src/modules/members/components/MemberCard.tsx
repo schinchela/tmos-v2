@@ -1,12 +1,19 @@
+import type { ReactNode } from "react";
+
 import {
   Award,
   CalendarClock,
   ChevronRight,
+  Hash,
   Mail,
   ShieldCheck,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
+import { Badge } from "../../../components/ui/Badge";
+import { Surface } from "../../../components/ui/Surface";
 import { cn } from "../../../components/ui/cn";
+import type { UiTone } from "../../../theme/ui.types";
 import type { MemberSummary } from "../member.types";
 import {
   formatMemberDate,
@@ -18,18 +25,20 @@ interface MemberCardProps {
   member: MemberSummary;
 }
 
-const renewalStyles = {
-  overdue:
-    "border-red-200 bg-red-50 text-red-700",
-  "due-soon":
-    "border-amber-200 bg-amber-50 text-amber-700",
-  current:
-    "border-emerald-200 bg-emerald-50 text-emerald-700",
-  unknown:
-    "border-slate-200 bg-slate-50 text-slate-600",
+const renewalTone: Record<
+  ReturnType<typeof getRenewalState>,
+  UiTone
+> = {
+  overdue: "danger",
+  "due-soon": "warning",
+  current: "success",
+  unknown: "neutral",
 };
 
-const renewalLabels = {
+const renewalLabels: Record<
+  ReturnType<typeof getRenewalState>,
+  string
+> = {
   overdue: "Renewal overdue",
   "due-soon": "Renewal approaching",
   current: "Renewal current",
@@ -43,106 +52,220 @@ export function MemberCard({
     member.renewalDate,
   );
 
+  const memberIdentifier =
+    member.toastmastersId ||
+    member.memberNumber ||
+    "Identifier pending";
+
+  const membershipTone: UiTone =
+    member.membershipStatus === "ACTIVE"
+      ? "success"
+      : "neutral";
+
   return (
-    <article className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
-      <div className="flex items-start gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-sm font-bold text-white">
-          {getMemberInitials(member)}
-        </div>
+    <Surface
+      as="article"
+      padding="none"
+      className="group relative overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-lg hover:shadow-teal-100/60"
+    >
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 opacity-75" />
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h2 className="truncate text-base font-bold text-slate-950">
-                {member.displayName}
-                {member.recognitionSuffix
-                  ? `, ${member.recognitionSuffix}`
-                  : ""}
-              </h2>
+      <div className="p-5">
+        <div className="flex items-start gap-4">
+          <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 via-cyan-600 to-blue-600 text-base font-bold text-white shadow-lg shadow-teal-100">
+            {getMemberInitials(member)}
 
-              <p className="mt-1 truncate text-sm text-slate-500">
-                {member.toastmastersId ||
-                  member.memberNumber ||
-                  "Member identifier pending"}
-              </p>
+            {member.activeOfficerRole ? (
+              <span className="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-lg border-2 border-white bg-indigo-600 text-white">
+                <ShieldCheck className="size-3.5" />
+              </span>
+            ) : null}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-bold text-slate-950">
+                  {member.displayName}
+                  {member.recognitionSuffix
+                    ? `, ${member.recognitionSuffix}`
+                    : ""}
+                </h2>
+
+                <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-slate-500">
+                  <Hash className="size-3.5 shrink-0" />
+
+                  <span className="truncate">
+                    {memberIdentifier}
+                  </span>
+                </div>
+              </div>
+
+              <Badge tone={membershipTone}>
+                {formatStatus(
+                  member.membershipStatus,
+                )}
+              </Badge>
             </div>
-
-            <span
-              className={cn(
-                "rounded-full px-2.5 py-1 text-xs font-semibold",
-                member.membershipStatus === "ACTIVE"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "bg-slate-100 text-slate-600",
-              )}
-            >
-              {member.membershipStatus}
-            </span>
           </div>
         </div>
-      </div>
 
-      <div className="mt-5 space-y-3">
         {member.activeOfficerRole ? (
-          <div className="flex items-center gap-3 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-            <ShieldCheck className="size-4 shrink-0" />
-            <span className="font-semibold">
-              {member.activeOfficerRole}
-            </span>
+          <div className="mt-5 flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50 px-3.5 py-3 text-sm text-indigo-800">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+              <ShieldCheck className="size-4" />
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-indigo-500">
+                Club leadership
+              </p>
+
+              <p className="mt-0.5 truncate font-semibold">
+                {member.activeOfficerRole}
+              </p>
+            </div>
           </div>
         ) : null}
 
-        <div className="flex items-start gap-3 text-sm text-slate-600">
-          <Award className="mt-0.5 size-4 shrink-0 text-slate-400" />
-          <div className="min-w-0">
-            <p className="truncate font-medium text-slate-700">
-              {member.pathwayName || "Pathway not assigned"}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {member.pathwayName
+        <div className="mt-5 space-y-4">
+          <MemberDetail
+            icon={
+              <Award className="size-4" />
+            }
+            label="Education pathway"
+            value={
+              member.pathwayName ||
+              "Pathway not assigned"
+            }
+            detail={
+              member.pathwayName
                 ? `Level ${member.pathwayLevel}`
-                : "Education profile pending"}
-            </p>
-          </div>
-        </div>
+                : "Education profile pending"
+            }
+            tone="education"
+          />
 
-        <div className="flex items-start gap-3 text-sm text-slate-600">
-          <Mail className="mt-0.5 size-4 shrink-0 text-slate-400" />
-          <span className="min-w-0 truncate">
-            {member.email || "Email not recorded"}
-          </span>
-        </div>
+          <MemberDetail
+            icon={
+              <Mail className="size-4" />
+            }
+            label="Email address"
+            value={
+              member.email ||
+              "Email not recorded"
+            }
+            tone="members"
+          />
 
-        <div className="flex items-start gap-3 text-sm text-slate-600">
-          <CalendarClock className="mt-0.5 size-4 shrink-0 text-slate-400" />
-          <span>
-            Renewal:{" "}
-            <span className="font-medium text-slate-700">
-              {formatMemberDate(member.renewalDate)}
-            </span>
-          </span>
+          <MemberDetail
+            icon={
+              <CalendarClock className="size-4" />
+            }
+            label="Renewal date"
+            value={formatMemberDate(
+              member.renewalDate,
+            )}
+            tone={renewalTone[renewalState]}
+          />
         </div>
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-        <span
-          className={cn(
-            "rounded-full border px-2.5 py-1 text-xs font-semibold",
-            renewalStyles[renewalState],
-          )}
+      <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-5 py-4">
+        <Badge
+          tone={renewalTone[renewalState]}
+          outlined
         >
           {renewalLabels[renewalState]}
-        </span>
+        </Badge>
 
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 transition group-hover:text-slate-950"
-          disabled
-          title="Member profile will be added in the next vertical slice"
+        <Link
+          to={`/members/${member.id}`}
+          aria-label={`Open ${member.displayName}'s member profile`}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 hover:text-teal-900"
         >
-          Profile
-          <ChevronRight className="size-4" />
-        </button>
+          View profile
+          <ChevronRight className="size-4 transition group-hover:translate-x-0.5" />
+        </Link>
       </div>
-    </article>
+    </Surface>
   );
+}
+
+interface MemberDetailProps {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  detail?: string;
+  tone: UiTone;
+}
+
+const detailToneClasses: Partial<
+  Record<UiTone, string>
+> = {
+  members:
+    "bg-teal-50 text-teal-700",
+  education:
+    "bg-violet-50 text-violet-700",
+  success:
+    "bg-emerald-50 text-emerald-700",
+  warning:
+    "bg-amber-50 text-amber-700",
+  danger:
+    "bg-rose-50 text-rose-700",
+  neutral:
+    "bg-slate-100 text-slate-600",
+};
+
+function MemberDetail({
+  icon,
+  label,
+  value,
+  detail,
+  tone,
+}: MemberDetailProps) {
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <div
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-xl",
+          detailToneClasses[tone] ||
+            detailToneClasses.neutral,
+        )}
+      >
+        {icon}
+      </div>
+
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          {label}
+        </p>
+
+        <p className="mt-1 truncate text-sm font-semibold text-slate-800">
+          {value}
+        </p>
+
+        {detail ? (
+          <p className="mt-0.5 text-xs text-slate-500">
+            {detail}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function formatStatus(
+  status: string,
+): string {
+  return status
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map(
+      (part) =>
+        part.charAt(0).toUpperCase() +
+        part.slice(1),
+    )
+    .join(" ");
 }

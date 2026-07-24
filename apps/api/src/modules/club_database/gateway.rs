@@ -64,7 +64,22 @@ impl ClubD1Gateway {
     where
         T: DeserializeOwned,
     {
-        let response = self.execute_read_query(database_identifier, sql).await?;
+        self.execute_read_rows_with_params(database_identifier, sql, Vec::new())
+            .await
+    }
+
+    pub async fn execute_read_rows_with_params<T>(
+        &self,
+        database_identifier: &str,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<Vec<T>, ApiError>
+    where
+        T: DeserializeOwned,
+    {
+        let response = self
+            .execute_read_query_with_params(database_identifier, sql, params)
+            .await?;
 
         let result_set = response.result.into_iter().next().ok_or_else(|| {
             ApiError::internal(
@@ -102,6 +117,16 @@ impl ClubD1Gateway {
         database_identifier: &str,
         sql: &str,
     ) -> Result<CloudflareD1QueryResponse, ApiError> {
+        self.execute_read_query_with_params(database_identifier, sql, Vec::new())
+            .await
+    }
+
+    pub async fn execute_read_query_with_params(
+        &self,
+        database_identifier: &str,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<CloudflareD1QueryResponse, ApiError> {
         validate_read_only_sql(sql)?;
 
         let endpoint = format!(
@@ -111,6 +136,7 @@ impl ClubD1Gateway {
 
         let payload = serde_json::to_string(&CloudflareD1QueryRequest {
             sql: sql.to_string(),
+            params,
         })
         .map_err(|error| {
             ApiError::internal(
@@ -251,6 +277,11 @@ mod tests {
     #[test]
     fn accepts_select_query() {
         assert!(validate_read_only_sql("SELECT 1 AS probe_value").is_ok());
+    }
+
+    #[test]
+    fn accepts_parameterized_select_query() {
+        assert!(validate_read_only_sql("SELECT * FROM members WHERE id = ?1 LIMIT 1").is_ok());
     }
 
     #[test]

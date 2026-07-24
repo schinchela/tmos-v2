@@ -23,7 +23,12 @@ export function formatMemberDate(
     return "Not recorded";
   }
 
-  const date = new Date(`${value}T00:00:00`);
+  const normalizedValue =
+    value.length === 10
+      ? `${value}T00:00:00`
+      : value.replace(" ", "T");
+
+  const date = new Date(normalizedValue);
 
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -36,14 +41,47 @@ export function formatMemberDate(
   }).format(date);
 }
 
+export function formatMemberDateTime(
+  value: string | null,
+): string {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  const normalizedValue = value.replace(
+    " ",
+    "T",
+  );
+
+  const date = new Date(normalizedValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export function getRenewalState(
   renewalDate: string | null,
-): "overdue" | "due-soon" | "current" | "unknown" {
+):
+  | "overdue"
+  | "due-soon"
+  | "current"
+  | "unknown" {
   if (!renewalDate) {
     return "unknown";
   }
 
-  const renewal = new Date(`${renewalDate}T00:00:00`);
+  const renewal = new Date(
+    `${renewalDate}T00:00:00`,
+  );
 
   if (Number.isNaN(renewal.getTime())) {
     return "unknown";
@@ -54,6 +92,7 @@ export function getRenewalState(
   today.setHours(0, 0, 0, 0);
 
   const millisecondsPerDay = 86_400_000;
+
   const differenceInDays = Math.ceil(
     (renewal.getTime() - today.getTime()) /
       millisecondsPerDay,
@@ -68,4 +107,20 @@ export function getRenewalState(
   }
 
   return "current";
+}
+
+export function formatMemberStatus(
+  status: string,
+): string {
+  return status
+    .trim()
+    .toLowerCase()
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map(
+      (part) =>
+        part.charAt(0).toUpperCase() +
+        part.slice(1),
+    )
+    .join(" ");
 }
