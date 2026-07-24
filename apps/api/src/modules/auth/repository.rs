@@ -311,6 +311,78 @@ impl AuthRepository {
         Ok(())
     }
 
+    pub async fn delete_expired_sessions(&self) -> Result<(), ApiError> {
+        self.database
+            .inner()
+            .prepare(
+                r#"
+                DELETE FROM user_sessions
+                WHERE datetime(expires_at) < datetime('now')
+                "#,
+            )
+            .run()
+            .await
+            .map_err(|error| {
+                database_error(
+                    "AUTH_EXPIRED_SESSION_CLEANUP_FAILED",
+                    "Expired authentication sessions could not be removed.",
+                    error,
+                )
+            })?;
+
+        Ok(())
+    }
+
+    pub async fn write_logout_audit(&self, audit_id: &str, user_id: &str) -> Result<(), ApiError> {
+        self.database
+            .inner()
+            .prepare(
+                r#"
+            INSERT INTO audit_logs (
+                id,
+                user_id,
+                action,
+                entity_type,
+                entity_id,
+                details,
+                created_at
+            )
+            VALUES (
+                ?,
+                ?,
+                'LOGOUT',
+                'user_session',
+                ?,
+                '{}',
+                datetime('now')
+            )
+            "#,
+            )
+            .bind(&[
+                JsValue::from_str(audit_id),
+                JsValue::from_str(user_id),
+                JsValue::from_str(user_id),
+            ])
+            .map_err(|error| {
+                database_error(
+                    "AUTH_LOGOUT_AUDIT_PREPARATION_FAILED",
+                    "The logout-audit query could not be prepared.",
+                    error,
+                )
+            })?
+            .run()
+            .await
+            .map_err(|error| {
+                database_error(
+                    "AUTH_LOGOUT_AUDIT_FAILED",
+                    "The logout audit event could not be recorded.",
+                    error,
+                )
+            })?;
+
+        Ok(())
+    }
+
     pub async fn find_club(&self, club_id: &str) -> Result<Option<ClubContextRow>, ApiError> {
         let statement = self
             .database

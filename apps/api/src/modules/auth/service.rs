@@ -26,6 +26,7 @@ impl AuthService {
 
     pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse, ApiError> {
         let email = request.email.trim().to_lowercase();
+        self.repository.delete_expired_sessions().await?;
 
         if email.is_empty() || request.password.is_empty() {
             return Err(invalid_credentials());
@@ -45,6 +46,7 @@ impl AuthService {
 
         verify_legacy_password(&request.password, stored_password)?;
 
+        self.repository.delete_expired_sessions().await?;
         let raw_token = format!("{}.{}", Uuid::new_v4(), Uuid::new_v4());
         let token_hash = sha256_hex(&raw_token);
 
@@ -74,7 +76,20 @@ impl AuthService {
 
         let token_hash = sha256_hex(&raw_token);
 
+        let user_id = self
+            .repository
+            .find_valid_session_user_id(&token_hash)
+            .await?;
+
         self.repository.delete_session(&token_hash).await?;
+
+        if let Some(user_id) = user_id {
+            let audit_id = format!("audit_{}", Uuid::new_v4());
+
+            self.repository
+                .write_logout_audit(&audit_id, &user_id)
+                .await?;
+        }
 
         Ok(LogoutResponse { logged_out: true })
     }

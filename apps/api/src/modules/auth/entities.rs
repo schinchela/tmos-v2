@@ -78,6 +78,7 @@ pub struct LoginResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LogoutResponse {
     pub logged_out: bool,
 }
