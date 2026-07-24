@@ -14,6 +14,14 @@ async fn route_request(request: &Request, env: &Env, context: &RequestContext) -
 
         (Method::Get, "/api/runtime") => modules::health::runtime(context, env),
 
+        (Method::Get, "/api/health/database") => {
+            modules::database_health::health(context, env).await
+        }
+
+        (Method::Get, "/api/platform/schema") => {
+            modules::database_health::schema(context, env).await
+        }
+
         _ => shared::api_response::error(
             context,
             ApiError::not_found(
