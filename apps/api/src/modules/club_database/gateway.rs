@@ -1,3 +1,4 @@
+use serde::de::DeserializeOwned;
 use wasm_bindgen::JsValue;
 use worker::{Env, Fetch, Headers, Method, Request, RequestInit};
 
@@ -53,6 +54,47 @@ impl ClubD1Gateway {
             account_id,
             api_token,
         })
+    }
+
+    pub async fn execute_read_rows<T>(
+        &self,
+        database_identifier: &str,
+        sql: &str,
+    ) -> Result<Vec<T>, ApiError>
+    where
+        T: DeserializeOwned,
+    {
+        let response = self.execute_read_query(database_identifier, sql).await?;
+
+        let result_set = response.result.into_iter().next().ok_or_else(|| {
+            ApiError::internal(
+                "CLUB_DATABASE_RESULT_SET_MISSING",
+                "The club database query returned no result set.",
+            )
+        })?;
+
+        if !result_set.success {
+            return Err(ApiError::internal(
+                "CLUB_DATABASE_RESULT_SET_UNSUCCESSFUL",
+                "The club database result set was unsuccessful.",
+            ));
+        }
+
+        result_set
+            .results
+            .into_iter()
+            .map(|row| {
+                serde_json::from_value::<T>(row).map_err(|error| {
+                    ApiError::internal(
+                        "CLUB_DATABASE_ROW_DESERIALIZATION_FAILED",
+                        "A club database row could not be read.",
+                    )
+                    .with_details(serde_json::json!({
+                        "workerMessage": error.to_string()
+                    }))
+                })
+            })
+            .collect()
     }
 
     pub async fn execute_read_query(
