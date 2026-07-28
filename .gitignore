@@ -1,3 +1,22 @@
 
 # Wrangler local state
 .wrangler/
+
+# Local database exports and backups
+backups/
+*.sqlite
+*.sqlite3
+*.db
+.dev.vars
+.env
+.env.*
+
+# Local audit archives and database backups
+*-audit.zip
+backups/
+*.sqlite
+*.sqlite3
+*.db
+.dev.vars
+.env
+.env.*

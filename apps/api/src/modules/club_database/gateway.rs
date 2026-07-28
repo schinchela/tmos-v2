@@ -77,39 +77,13 @@ impl ClubD1Gateway {
     where
         T: DeserializeOwned,
     {
+        validate_read_only_sql(sql)?;
+
         let response = self
-            .execute_read_query_with_params(database_identifier, sql, params)
+            .execute_query_with_params(database_identifier, sql, params)
             .await?;
 
-        let result_set = response.result.into_iter().next().ok_or_else(|| {
-            ApiError::internal(
-                "CLUB_DATABASE_RESULT_SET_MISSING",
-                "The club database query returned no result set.",
-            )
-        })?;
-
-        if !result_set.success {
-            return Err(ApiError::internal(
-                "CLUB_DATABASE_RESULT_SET_UNSUCCESSFUL",
-                "The club database result set was unsuccessful.",
-            ));
-        }
-
-        result_set
-            .results
-            .into_iter()
-            .map(|row| {
-                serde_json::from_value::<T>(row).map_err(|error| {
-                    ApiError::internal(
-                        "CLUB_DATABASE_ROW_DESERIALIZATION_FAILED",
-                        "A club database row could not be read.",
-                    )
-                    .with_details(serde_json::json!({
-                        "workerMessage": error.to_string()
-                    }))
-                })
-            })
-            .collect()
+        deserialize_rows(response)
     }
 
     pub async fn execute_read_query(
@@ -129,6 +103,45 @@ impl ClubD1Gateway {
     ) -> Result<CloudflareD1QueryResponse, ApiError> {
         validate_read_only_sql(sql)?;
 
+        self.execute_query_with_params(database_identifier, sql, params)
+            .await
+    }
+
+    pub async fn execute_insert_with_params(
+        &self,
+        database_identifier: &str,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<(), ApiError> {
+        validate_insert_sql(sql)?;
+
+        let response = self
+            .execute_query_with_params(database_identifier, sql, params)
+            .await?;
+
+        let result_set = response.result.into_iter().next().ok_or_else(|| {
+            ApiError::internal(
+                "CLUB_DATABASE_MUTATION_RESULT_MISSING",
+                "The club database mutation returned no result set.",
+            )
+        })?;
+
+        if !result_set.success {
+            return Err(ApiError::internal(
+                "CLUB_DATABASE_MUTATION_UNSUCCESSFUL",
+                "The club database mutation was unsuccessful.",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn execute_query_with_params(
+        &self,
+        database_identifier: &str,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<CloudflareD1QueryResponse, ApiError> {
         let endpoint = format!(
             "{CLOUDFLARE_API_BASE}/accounts/{}/d1/database/{}/query",
             self.account_id, database_identifier
@@ -212,6 +225,41 @@ impl ClubD1Gateway {
     }
 }
 
+fn deserialize_rows<T>(response: CloudflareD1QueryResponse) -> Result<Vec<T>, ApiError>
+where
+    T: DeserializeOwned,
+{
+    let result_set = response.result.into_iter().next().ok_or_else(|| {
+        ApiError::internal(
+            "CLUB_DATABASE_RESULT_SET_MISSING",
+            "The club database query returned no result set.",
+        )
+    })?;
+
+    if !result_set.success {
+        return Err(ApiError::internal(
+            "CLUB_DATABASE_RESULT_SET_UNSUCCESSFUL",
+            "The club database result set was unsuccessful.",
+        ));
+    }
+
+    result_set
+        .results
+        .into_iter()
+        .map(|row| {
+            serde_json::from_value::<T>(row).map_err(|error| {
+                ApiError::internal(
+                    "CLUB_DATABASE_ROW_DESERIALIZATION_FAILED",
+                    "A club database row could not be read.",
+                )
+                .with_details(serde_json::json!({
+                    "workerMessage": error.to_string()
+                }))
+            })
+        })
+        .collect()
+}
+
 fn first_api_message(response: &CloudflareD1QueryResponse) -> Option<String> {
     response
         .errors
@@ -241,16 +289,7 @@ fn validate_read_only_sql(sql: &str) -> Result<(), ApiError> {
         ));
     }
 
-    let tokenized = normalized
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || character == '_' {
-                character
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>();
+    let tokenized = tokenize_sql(&normalized);
 
     let prohibited = [
         "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "REPLACE", "ATTACH", "DETACH",
@@ -270,9 +309,58 @@ fn validate_read_only_sql(sql: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+fn validate_insert_sql(sql: &str) -> Result<(), ApiError> {
+    let normalized = sql.trim().to_ascii_uppercase();
+
+    if normalized.is_empty() {
+        return Err(ApiError::bad_request(
+            "CLUB_DATABASE_MUTATION_EMPTY",
+            "The club database mutation cannot be empty.",
+        ));
+    }
+
+    if !normalized.starts_with("INSERT INTO MEMBERS") {
+        return Err(ApiError::forbidden(
+            "CLUB_DATABASE_MUTATION_NOT_ALLOWED",
+            "Only approved member insertion queries are permitted.",
+        ));
+    }
+
+    let tokenized = tokenize_sql(&normalized);
+
+    let prohibited = [
+        "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "REPLACE", "ATTACH", "DETACH", "VACUUM",
+        "PRAGMA",
+    ];
+
+    if tokenized
+        .split_whitespace()
+        .any(|token| prohibited.contains(&token))
+    {
+        return Err(ApiError::forbidden(
+            "CLUB_DATABASE_MUTATION_NOT_ALLOWED",
+            "The requested club database mutation is not permitted.",
+        ));
+    }
+
+    Ok(())
+}
+
+fn tokenize_sql(sql: &str) -> String {
+    sql.chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '_' {
+                character
+            } else {
+                ' '
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::validate_read_only_sql;
+    use super::{validate_insert_sql, validate_read_only_sql};
 
     #[test]
     fn accepts_select_query() {
@@ -300,6 +388,30 @@ mod tests {
         let result = validate_read_only_sql(
             "WITH removed AS (DELETE FROM members RETURNING id) SELECT * FROM removed",
         );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn accepts_member_insert() {
+        assert!(validate_insert_sql("INSERT INTO members (id) VALUES (?1)").is_ok());
+    }
+
+    #[test]
+    fn rejects_insert_into_other_table() {
+        let result = validate_insert_sql("INSERT INTO audit_logs (id) VALUES (?1)");
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().code,
+            "CLUB_DATABASE_MUTATION_NOT_ALLOWED"
+        );
+    }
+
+    #[test]
+    fn rejects_multiple_mutation_intent() {
+        let result =
+            validate_insert_sql("INSERT INTO members (id) VALUES (?1); DELETE FROM members");
 
         assert!(result.is_err());
     }

@@ -127,11 +127,39 @@ impl From<MemberRow> for MemberProfile {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateMemberRequest {
+    pub member_number: Option<String>,
+    pub toastmasters_id: Option<String>,
+    pub first_name: String,
+    pub last_name: String,
+    pub display_name: Option<String>,
+    pub recognition_suffix: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub membership_type: Option<String>,
+    pub membership_status: Option<String>,
+    pub join_date: Option<String>,
+    pub renewal_date: Option<String>,
+    pub mentor_member_id: Option<String>,
+    pub sponsor_member_id: Option<String>,
+    pub pathway_name: Option<String>,
+    pub pathway_level: Option<i32>,
+    pub active_officer_role: Option<String>,
+    pub notes: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MembersList {
     pub members: Vec<MemberSummary>,
     pub total: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExistingMemberRow {
+    pub id: String,
 }
 
 #[cfg(test)]
@@ -149,7 +177,7 @@ mod tests {
             recognition_suffix: None,
             email: Some("member@example.com".to_string()),
             phone: None,
-            membership_type: Some("MEMBER".to_string()),
+            membership_type: Some("Member".to_string()),
             membership_status: "ACTIVE".to_string(),
             join_date: Some("2026-01-01".to_string()),
             renewal_date: Some("2026-09-30".to_string()),
@@ -162,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn summary_uses_stored_display_name_when_available() {
+    fn summary_uses_stored_display_name() {
         let summary = MemberSummary::from(member_row(Some("Suketh C."), Some(4)));
 
         assert_eq!(summary.display_name, "Suketh C.");
@@ -170,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn summary_builds_fallback_display_name() {
+    fn summary_builds_fallback_name() {
         let summary = MemberSummary::from(member_row(Some("   "), None));
 
         assert_eq!(summary.display_name, "Suketh Chinchela");
@@ -178,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_preserves_summary_identity_fields() {
+    fn profile_preserves_identity() {
         let profile = MemberProfile::from(member_row(None, Some(3)));
 
         assert_eq!(profile.id, "member_123");

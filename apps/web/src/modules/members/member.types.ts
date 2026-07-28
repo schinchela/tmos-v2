@@ -20,3 +20,24 @@ export interface MemberSummary {
 }
 
 export type MemberProfile = MemberSummary;
+
+export interface CreateMemberInput {
+  memberNumber?: string;
+  toastmastersId?: string;
+  firstName: string;
+  lastName: string;
+  displayName?: string;
+  recognitionSuffix?: string;
+  email?: string;
+  phone?: string;
+  membershipType?: string;
+  membershipStatus?: string;
+  joinDate?: string;
+  renewalDate?: string;
+  mentorMemberId?: string;
+  sponsorMemberId?: string;
+  pathwayName?: string;
+  pathwayLevel?: number;
+  activeOfficerRole?: string;
+  notes?: string;
+}

@@ -14,7 +14,10 @@ import {
   useState,
 } from "react";
 
-import { Button } from "../../components/actions/Button";
+import {
+  Button,
+  ButtonLink,
+} from "../../components/actions/Button";
 import { MetricCard } from "../../components/data-display/MetricCard";
 import { CardSkeletonGrid } from "../../components/feedback/Skeleton";
 import { EmptyState } from "../../components/feedback/EmptyState";
@@ -132,16 +135,15 @@ export function MembersPage() {
         backLabel="Back to dashboard"
         actions={
           <>
-            <Button
+            <ButtonLink
+              to="/members/new"
               tone="members"
               leadingIcon={
                 <UserPlus className="size-4" />
               }
-              disabled
-              title="Member creation will be added in the next vertical slice"
             >
               Add member
-            </Button>
+            </ButtonLink>
 
             <Button
               tone="members"

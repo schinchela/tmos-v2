@@ -9,6 +9,7 @@ import { ProtectedRoute } from "../modules/auth/ProtectedRoute";
 import { DashboardPage } from "../modules/dashboard/DashboardPage";
 import { LegacyModulePage } from "../modules/legacy/LegacyModulePage";
 import { NotFoundPage } from "../modules/legacy/NotFoundPage";
+import { MemberCreatePage } from "../modules/members/MemberCreatePage";
 import { MemberProfilePage } from "../modules/members/MemberProfilePage";
 import { MembersPage } from "../modules/members/MembersPage";
 
@@ -44,6 +45,12 @@ export const router =
               path: "members",
               element: (
                 <MembersPage />
+              ),
+            },
+            {
+              path: "members/new",
+              element: (
+                <MemberCreatePage />
               ),
             },
             {

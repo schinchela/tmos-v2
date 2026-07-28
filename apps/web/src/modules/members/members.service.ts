@@ -1,5 +1,6 @@
 import { apiRequest } from "../../lib/api/apiClient";
 import type {
+  CreateMemberInput,
   MemberProfile,
   MemberSummary,
 } from "./member.types";
@@ -13,5 +14,17 @@ export function getMemberById(
 ): Promise<MemberProfile> {
   return apiRequest<MemberProfile>(
     `/api/members/${encodeURIComponent(memberId)}`,
+  );
+}
+
+export function createMember(
+  input: CreateMemberInput,
+): Promise<MemberProfile> {
+  return apiRequest<MemberProfile>(
+    "/api/members",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
   );
 }

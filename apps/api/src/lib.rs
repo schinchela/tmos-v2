@@ -62,6 +62,10 @@ async fn route_request(
             modules::members::routes::list(request, context, env).await
         }
 
+        (Method::Post, "/api/members") => {
+            modules::members::routes::create(request, context, env).await
+        }
+
         _ => shared::api_response::error(
             context,
             ApiError::not_found(

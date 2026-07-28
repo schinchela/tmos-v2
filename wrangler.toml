@@ -9,3 +9,8 @@ preview_urls = true
 binding = "DB"
 database_name = "tmos-platform"
 database_id = "9579e68f-5abc-46aa-a380-b3ca52bec7fc"
+
+[[d1_databases]]
+binding = "CLUB_DB"
+database_name = "tmos-tccb"
+database_id = "8ba9d00d-7a49-4af5-9ae6-d17edf3f9bc9"
